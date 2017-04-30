@@ -24,21 +24,24 @@
 
 package com.yahoo.ycsb.db;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.Vector;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.StringByteIterator;
-
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.Protocol;
-
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
-import java.util.Vector;
 
 /**
  * YCSB binding for <a href="http://redis.io/">Redis</a>.
@@ -47,111 +50,251 @@ import java.util.Vector;
  */
 public class RedisClient extends DB {
 
-  private Jedis jedis;
+	private HashShardedJedis jedis;
+	private RedisLease lease;
+	private MongoDbClient mongo;
+	private List<String> luaKeys = new ArrayList<>();
+	private String phase;
+	private RedisRecoveryEngine recovery;
 
-  public static final String HOST_PROPERTY = "redis.host";
-  public static final String PORT_PROPERTY = "redis.port";
-  public static final String PASSWORD_PROPERTY = "redis.password";
+	private static final AtomicBoolean isDBFailed = new AtomicBoolean(false);
+	private static final AtomicBoolean initLock = new AtomicBoolean(false);
+	private static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
+	private static RedisEWStatsWatcher watcher;
+	private static List<RedisActiveRecoveryWorker> workers = new ArrayList<>();
+	private static DBSimulator dbSimulator;
 
-  public static final String INDEX_KEY = "_indices";
+	private static ExecutorService threads;
 
-  public void init() throws DBException {
-    Properties props = getProperties();
-    int port;
+	public static final String REDIS_HOSTS_PROPERTY = "redis.hosts";
+	public static final String MONGO_HOST_PROPERTY = "mongo.host";
+	public static final String AR_WORKER_PROPERTY = "ar";
+	public static final String DB_FAIL_WORKER_PROPERTY = "dbfail";
+	public static final String ALPHA_PROPERTY = "alpha";
+	public static final String PHASE_PROPERTY = "phase";
 
-    String portString = props.getProperty(PORT_PROPERTY);
-    if (portString != null) {
-      port = Integer.parseInt(portString);
-    } else {
-      port = Protocol.DEFAULT_PORT;
-    }
-    String host = props.getProperty(HOST_PROPERTY);
+	public void init() throws DBException {
 
-    jedis = new Jedis(host, port);
-    jedis.connect();
+		INIT_COUNT.incrementAndGet();
 
-    String password = props.getProperty(PASSWORD_PROPERTY);
-    if (password != null) {
-      jedis.auth(password);
-    }
-  }
+		Properties props = getProperties();
+		
+		props.forEach((k, v) -> {
+			System.out.println(k + "=" + v);
+		});
 
-  public void cleanup() throws DBException {
-    jedis.disconnect();
-  }
+		if (!props.containsKey(REDIS_HOSTS_PROPERTY)) {
+			throw new RuntimeException("redis hosts not specified");
+		}
 
-  /*
-   * Calculate a hash for a key to store it in an index. The actual return value
-   * of this function is not interesting -- it primarily needs to be fast and
-   * scattered along the whole space of doubles. In a real world scenario one
-   * would probably use the ASCII values of the keys.
-   */
-  private double hash(String key) {
-    return key.hashCode();
-  }
+		if (!props.containsKey(MONGO_HOST_PROPERTY)) {
+			throw new RuntimeException("mongo hosts not specified");
+		}
 
-  // XXX jedis.select(int index) to switch to `table`
+		if (!props.containsKey(AR_WORKER_PROPERTY)) {
+			throw new RuntimeException("ar not specified");
+		}
 
-  @Override
-  public Status read(String table, String key, Set<String> fields,
-      HashMap<String, ByteIterator> result) {
-    if (fields == null) {
-      StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(key));
-    } else {
-      String[] fieldArray =
-          (String[]) fields.toArray(new String[fields.size()]);
-      List<String> values = jedis.hmget(key, fieldArray);
+		if (!props.containsKey(ALPHA_PROPERTY)) {
+			throw new RuntimeException("ar not specified");
+		}
 
-      Iterator<String> fieldIterator = fields.iterator();
-      Iterator<String> valueIterator = values.iterator();
+		if (!props.containsKey(PHASE_PROPERTY)) {
+			throw new RuntimeException("ar not specified");
+		}
 
-      while (fieldIterator.hasNext() && valueIterator.hasNext()) {
-        result.put(fieldIterator.next(),
-            new StringByteIterator(valueIterator.next()));
-      }
-      assert !fieldIterator.hasNext() && !valueIterator.hasNext();
-    }
-    return result.isEmpty() ? Status.ERROR : Status.OK;
-  }
+		phase = props.getProperty(PHASE_PROPERTY);
 
-  @Override
-  public Status insert(String table, String key,
-      HashMap<String, ByteIterator> values) {
-    if (jedis.hmset(key, StringByteIterator.getStringMap(values))
-        .equals("OK")) {
-      jedis.zadd(INDEX_KEY, hash(key), key);
-      return Status.OK;
-    }
-    return Status.ERROR;
-  }
+		int alpha = Integer.parseInt(props.getProperty(ALPHA_PROPERTY));
 
-  @Override
-  public Status delete(String table, String key) {
-    return jedis.del(key) == 0 && jedis.zrem(INDEX_KEY, key) == 0 ? Status.ERROR
-        : Status.OK;
-  }
+		this.mongo = new MongoDbClientDelegate(props.getProperty(MONGO_HOST_PROPERTY), isDBFailed);
+		this.mongo.init();
+		
+		String[] urls = props.getProperty(REDIS_HOSTS_PROPERTY).split(",");
+		
+		jedis = new HashShardedJedis(urls);
+		lease = new RedisLease(jedis, "client");
+		recovery = new RedisRecoveryEngine(jedis, mongo);
 
-  @Override
-  public Status update(String table, String key,
-      HashMap<String, ByteIterator> values) {
-    return jedis.hmset(key, StringByteIterator.getStringMap(values))
-        .equals("OK") ? Status.OK : Status.ERROR;
-  }
+		synchronized (initLock) {
+			if (initLock.get()) {
+				return;
+			}
+			
+			jedis.loadScript();
+			
+			if ("load".equals(phase)) {
+				this.mongo.dropDatabase();
+			}
 
-  @Override
-  public Status scan(String table, String startkey, int recordcount,
-      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
-    Set<String> keys = jedis.zrangeByScore(INDEX_KEY, hash(startkey),
-        Double.POSITIVE_INFINITY, 0, recordcount);
+			threads = Executors.newFixedThreadPool(100);
 
-    HashMap<String, ByteIterator> values;
-    for (String key : keys) {
-      values = new HashMap<String, ByteIterator>();
-      read(table, key, fields, values);
-      result.add(values);
-    }
+			if (props.containsKey(DB_FAIL_WORKER_PROPERTY)) {
+				String[] ints = props.getProperty(DB_FAIL_WORKER_PROPERTY).split(",");
+				long[] intervals = new long[ints.length];
+				for (int i = 0; i < ints.length; i++) {
+					intervals[i] = Integer.parseInt(ints[i]);
+				}
+				dbSimulator = new DBSimulator(isDBFailed, intervals);
+				threads.submit(dbSimulator);
+			}
 
-    return Status.OK;
-  }
+			int ar = Integer.parseInt(props.getProperty(AR_WORKER_PROPERTY));
+			for (int i = 0; i < ar; i++) {
+				HashShardedJedis jedis = new HashShardedJedis(urls);
+				RedisLease lease = new RedisLease(jedis, "client");
+				RedisActiveRecoveryWorker worker = new RedisActiveRecoveryWorker(isDBFailed, jedis, lease,
+						new RedisRecoveryEngine(new HashShardedJedis(urls), mongo), ar, alpha);
+				workers.add(worker);
+				threads.submit(worker);
+			}
+			watcher = new RedisEWStatsWatcher(new HashShardedJedis(urls));
+			threads.submit(watcher);
+			initLock.set(true);
+		}
+	}
+
+	public void cleanup() throws DBException {
+		if (INIT_COUNT.decrementAndGet() == 0) {
+			System.out.println("clean up!!!");
+			if ("load".equals(phase)) {
+				System.out.println("##### insert user into database");
+				this.mongo.insertMany();
+			} else {
+				System.out.println("##### drop database");
+//				this.mongo.dropDatabase();
+			}
+
+			workers.forEach(i -> {
+				i.shutdown();
+			});
+			dbSimulator.shutdown();
+			watcher.shutdown();
+			threads.shutdown();
+		}
+		jedis.close();
+		this.mongo.cleanup();
+	}
+
+	@Override
+	public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
+		int id = jedis.getKeyServerIndex(key);
+		if (fields == null) {
+			StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(id, TardisClientConfig.normalKey(key)));
+		} else {
+			String[] fieldArray = (String[]) fields.toArray(new String[fields.size()]);
+			List<String> values = jedis.hmget(id, TardisClientConfig.normalKey(key), fieldArray);
+
+			Iterator<String> fieldIterator = fields.iterator();
+			Iterator<String> valueIterator = values.iterator();
+
+			while (fieldIterator.hasNext() && valueIterator.hasNext()) {
+				result.put(fieldIterator.next(), new StringByteIterator(valueIterator.next()));
+			}
+			assert !fieldIterator.hasNext() && !valueIterator.hasNext();
+		}
+
+		if (result.isEmpty()) {
+			return recover(key, result);
+		}
+		return result.isEmpty() ? Status.ERROR : Status.OK;
+	}
+
+	public Status recover(String key, HashMap<String, ByteIterator> result) {
+		int id = jedis.getKeyServerIndex(key);
+		lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
+		try {
+			if (RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.READ, key))) {
+				return Status.ERROR;
+			}
+			HashMap<String, String> mongoResult = new HashMap<>();
+			this.mongo.read(TardisClientConfig.normalKey(key), mongoResult);
+
+			StringByteIterator.putAllAsByteIterators(result, mongoResult);
+			jedis.hmset(id, TardisClientConfig.normalKey(key), mongoResult);
+			return Status.OK;
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			lease.releaseLease(id, TardisClientConfig.leaseKey(key), luaKeys);
+		}
+		return Status.ERROR;
+	}
+
+	@Override
+	public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
+		int id = jedis.getKeyServerIndex(key);
+		
+		HashMap<String, String> fields = StringByteIterator.getStringMap(values); 
+		
+		Object response = jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
+		this.mongo.insert(TardisClientConfig.normalKey(key), fields);
+
+		if (!"OK".equals(response)) {
+			System.out.println("insert failed, " + table + "," + key);
+			System.exit(0);
+		}
+		return Status.OK;
+	}
+
+	@Override
+	public Status delete(String table, String key) {
+		int id = jedis.getKeyServerIndex(key);
+		return jedis.del(id, TardisClientConfig.normalKey(key)) == 0 ? Status.ERROR : Status.OK;
+	}
+
+	@Override
+	public Status update(String table, String key, HashMap<String, ByteIterator> values) {
+
+		int id = jedis.getKeyServerIndex(key);
+
+		lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
+
+		boolean cacheKeyExist = false;
+		boolean updateDBSuccess = false;
+		boolean firstTimeDirty = false;
+
+		try {
+			cacheKeyExist = jedis.exists(id, TardisClientConfig.normalKey(key));
+			HashMap<String, String> fields = StringByteIterator.getStringMap(values);
+
+			if (cacheKeyExist) {
+				jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
+			}
+
+			// insert into mongodb
+			if (!isDBFailed.get()) {
+				updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+			} else {
+				updateDBSuccess = false;
+			}
+
+			if (!updateDBSuccess) {
+				firstTimeDirty = jedis.exists(id, TardisClientConfig.bufferedWriteKey(key));
+				if (cacheKeyExist) {
+					// put key as dirty
+					jedis.hset(id, TardisClientConfig.bufferedWriteKey(key), "d", "d");
+				} else {
+					jedis.hmset(id, TardisClientConfig.bufferedWriteKey(key), StringByteIterator.getStringMap(values));
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			lease.releaseLease(id, TardisClientConfig.leaseKey(key), luaKeys);
+			if (firstTimeDirty) {
+				lease.acquireLease(id, TardisClientConfig.ewLeaseKey(key));
+				jedis.sadd(id, TardisClientConfig.ewKey(key), key);
+				lease.releaseLease(id, TardisClientConfig.ewLeaseKey(key), luaKeys);
+			}
+		}
+		return Status.OK;
+	}
+
+	@Override
+	public Status scan(String table, String startkey, int recordcount, Set<String> fields,
+			Vector<HashMap<String, ByteIterator>> result) {
+		return Status.NOT_IMPLEMENTED;
+	}
 
 }
