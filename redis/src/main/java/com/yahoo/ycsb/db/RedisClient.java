@@ -96,11 +96,11 @@ public class RedisClient extends DB {
 		}
 
 		if (!props.containsKey(ALPHA_PROPERTY)) {
-			throw new RuntimeException("ar not specified");
+			throw new RuntimeException("alpha not specified");
 		}
 
 		if (!props.containsKey(PHASE_PROPERTY)) {
-			throw new RuntimeException("ar not specified");
+			throw new RuntimeException("phase not specified");
 		}
 
 		phase = props.getProperty(PHASE_PROPERTY);
@@ -168,7 +168,9 @@ public class RedisClient extends DB {
 			workers.forEach(i -> {
 				i.shutdown();
 			});
-			dbSimulator.shutdown();
+			if (dbSimulator != null) {
+				dbSimulator.shutdown();
+			}
 			watcher.shutdown();
 			threads.shutdown();
 		}
