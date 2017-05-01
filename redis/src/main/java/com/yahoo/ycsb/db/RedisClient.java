@@ -259,7 +259,8 @@ public class RedisClient extends DB {
 	public Status update(String table, String key, HashMap<String, ByteIterator> values) {
 
 		int id = jedis.getKeyServerIndex(key);
-
+		HashMap<String, String> fields = StringByteIterator.getStringMap(values);
+		
 		lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
 
 		boolean cacheKeyExist = false;
@@ -268,8 +269,7 @@ public class RedisClient extends DB {
 
 		try {
 			cacheKeyExist = jedis.exists(id, TardisClientConfig.normalKey(key));
-			HashMap<String, String> fields = StringByteIterator.getStringMap(values);
-
+			
 			if (cacheKeyExist) {
 				jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
 			}
@@ -287,7 +287,7 @@ public class RedisClient extends DB {
 					// put key as dirty
 					jedis.hset(id, TardisClientConfig.bufferedWriteKey(key), "d", "d");
 				} else {
-					jedis.hmset(id, TardisClientConfig.bufferedWriteKey(key), StringByteIterator.getStringMap(values));
+					jedis.hmset(id, TardisClientConfig.bufferedWriteKey(key), fields);
 				}
 			}
 		} catch (Exception e) {
