@@ -275,10 +275,14 @@ public class RedisClient extends DB {
 				if (cacheKeyExist) {
 					jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
 				}
-
+				
 				// insert into mongodb
 				if (!isDBFailed.get()) {
-					updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+					
+					if (!RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.WRITE, key))) {
+						updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+					}
+					
 				} else {
 					updateDBSuccess = false;
 				}
