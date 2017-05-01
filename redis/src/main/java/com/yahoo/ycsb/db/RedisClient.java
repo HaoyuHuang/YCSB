@@ -206,7 +206,8 @@ public class RedisClient extends DB {
 			assert !fieldIterator.hasNext() && !valueIterator.hasNext();
 		}
 
-		if (result.isEmpty()) {
+		if (result.isEmpty() && !TardisClientConfig.measureSuccessWrites) {
+			System.out.println("BUG!!!!");
 			return recover(key, result);
 		}
 		return result.isEmpty() ? Status.ERROR : Status.OK;
@@ -294,6 +295,11 @@ public class RedisClient extends DB {
 			e.printStackTrace();
 			if (TardisClientConfig.measureSuccessWrites) {
 				System.out.println("success write " + TardisClientConfig.numberOfSuccessfulWrites.get());
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
 				System.exit(0);
 			}
 
