@@ -132,7 +132,7 @@ public class RedisClient extends DB {
 				isDBFailed.set(true);
 			}
 
-			threads = Executors.newFixedThreadPool(100);
+			threads = Executors.newFixedThreadPool(120);
 
 			if (props.containsKey(DB_FAIL_WORKER_PROPERTY)) {
 				String[] ints = props.getProperty(DB_FAIL_WORKER_PROPERTY).split(",");
