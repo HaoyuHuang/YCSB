@@ -1,5 +1,7 @@
 package com.yahoo.ycsb.db;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * @author haoyuh
  *
@@ -38,8 +40,9 @@ public class TardisClientConfig {
 
 	public static final int DATABASE_FAILURE = 1000;
 	
-	public static boolean enableMetrics = true;
-
+	public static boolean measureSuccessWrites = false;
+	public static final AtomicInteger numberOfSuccessfulWrites = new AtomicInteger();
+	
 	public static String leaseKey(String key) {
 		return LEASE_KEY_BUFFERED_WRITES + key;
 	}

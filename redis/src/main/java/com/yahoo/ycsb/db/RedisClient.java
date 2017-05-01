@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Vector;
@@ -72,6 +71,7 @@ public class RedisClient extends DB {
 	public static final String DB_FAIL_WORKER_PROPERTY = "dbfail";
 	public static final String ALPHA_PROPERTY = "alpha";
 	public static final String PHASE_PROPERTY = "phase";
+	public static final String SUCCESS_WRITE_PROPERTY = "successWrite";
 
 	public void init() throws DBException {
 
@@ -125,6 +125,11 @@ public class RedisClient extends DB {
 			
 			if ("load".equals(phase)) {
 				this.mongo.dropDatabase();
+			}
+			
+			if (props.containsKey(SUCCESS_WRITE_PROPERTY)) {
+				TardisClientConfig.measureSuccessWrites = Boolean.parseBoolean(props.getProperty(SUCCESS_WRITE_PROPERTY));
+				isDBFailed.set(true);
 			}
 
 			threads = Executors.newFixedThreadPool(100);
@@ -180,6 +185,11 @@ public class RedisClient extends DB {
 
 	@Override
 	public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
+		
+		if (TardisClientConfig.measureSuccessWrites) {
+			return Status.OK;
+		}
+		
 		int id = jedis.getKeyServerIndex(key);
 		if (fields == null) {
 			StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(id, TardisClientConfig.normalKey(key)));
@@ -272,7 +282,7 @@ public class RedisClient extends DB {
 			}
 
 			if (!updateDBSuccess) {
-				firstTimeDirty = jedis.exists(id, TardisClientConfig.bufferedWriteKey(key));
+				firstTimeDirty = !jedis.exists(id, TardisClientConfig.bufferedWriteKey(key));
 				if (cacheKeyExist) {
 					// put key as dirty
 					jedis.hset(id, TardisClientConfig.bufferedWriteKey(key), "d", "d");
@@ -282,12 +292,21 @@ public class RedisClient extends DB {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+			if (TardisClientConfig.measureSuccessWrites) {
+				System.out.println("success write " + TardisClientConfig.numberOfSuccessfulWrites.get());
+				System.exit(0);
+			}
+
 		} finally {
 			lease.releaseLease(id, TardisClientConfig.leaseKey(key), luaKeys);
-			if (firstTimeDirty) {
+			if (firstTimeDirty && !updateDBSuccess) {
 				lease.acquireLease(id, TardisClientConfig.ewLeaseKey(key));
 				jedis.sadd(id, TardisClientConfig.ewKey(key), key);
 				lease.releaseLease(id, TardisClientConfig.ewLeaseKey(key), luaKeys);
+			}
+			
+			if (TardisClientConfig.measureSuccessWrites) {
+				TardisClientConfig.numberOfSuccessfulWrites.incrementAndGet();
 			}
 		}
 		return Status.OK;
