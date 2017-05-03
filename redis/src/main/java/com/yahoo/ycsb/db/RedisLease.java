@@ -15,6 +15,7 @@ public class RedisLease {
 	private final int clientId;
 	private final String caller;
 	private static final AtomicInteger global_id = new AtomicInteger();
+	public static final AtomicInteger numberOfBackOffs = new AtomicInteger();
 
 	public RedisLease(HashShardedJedis redisClient, String caller) {
 		super();
@@ -32,6 +33,7 @@ public class RedisLease {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
+			numberOfBackOffs.incrementAndGet();
 			if (tries >= 10) {
 				System.out.println("acquire lease on key " + key);
 			}

@@ -11,7 +11,7 @@ public class TardisClientConfig {
 	public static final long RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW = 50;
 	public static final long RECOVERY_WORKER_RANGE_TIME_BETWEEN_CHECKING_EW = 50;
 
-	public static final long RECOVERY_WORKER_SLEEP_TIME = 1000;
+	public static final long RECOVERY_WORKER_SLEEP_TIME = 0;
 
 	public static final long STATS_EW_WORKER_TIME_BETWEEN_CHECKING_EW = 1000;
 	public static final long STATS_SLAB_WORKER_TIME_BETWEEN_CHECKING_EW = 10000;

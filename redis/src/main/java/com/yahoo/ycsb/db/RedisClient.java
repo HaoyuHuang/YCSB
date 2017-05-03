@@ -169,6 +169,8 @@ public class RedisClient extends DB {
 				System.out.println("##### drop database");
 //				this.mongo.dropDatabase();
 			}
+			
+			System.out.println("# of backoffs "  + RedisLease.numberOfBackOffs.get());
 
 			workers.forEach(i -> {
 				i.shutdown();
@@ -282,7 +284,6 @@ public class RedisClient extends DB {
 					if (!RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.WRITE, key))) {
 						updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
 					}
-					
 				} else {
 					updateDBSuccess = false;
 				}

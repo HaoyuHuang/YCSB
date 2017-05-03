@@ -148,6 +148,11 @@ public class RedisActiveRecoveryWorker implements Callable<Void> {
 	}
 
 	private void sleep() {
+		
+		if (TardisClientConfig.RECOVERY_WORKER_SLEEP_TIME == 0) {
+			return;
+		}
+		
 		try {
 			Thread.sleep(TardisClientConfig.RECOVERY_WORKER_SLEEP_TIME);
 		} catch (Exception e) {
