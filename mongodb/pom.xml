@@ -32,6 +32,11 @@ LICENSE file.
 
   <dependencies>
     <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>1.2.17</version>
+    </dependency>
+    <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongo-java-driver</artifactId>
       <version>${mongodb.version}</version>
@@ -60,6 +65,20 @@ LICENSE file.
       <version>4.12</version>
       <scope>test</scope>
     </dependency>
+    
+    <dependency>
+      <groupId>whalin</groupId>
+      <artifactId>com.meetup</artifactId>
+      <version>2.5.3</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/src/main/resources/cache.jar</systemPath>
+    </dependency>
+
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20160810</version>
+    </dependency>
   </dependencies>
   <repositories>
     <repository>
@@ -79,4 +98,8 @@ LICENSE file.
       <layout>default</layout>
     </repository>
   </repositories>
+
+  <properties>
+    <checkstyle.skip>true</checkstyle.skip>
+  </properties>
 </project>

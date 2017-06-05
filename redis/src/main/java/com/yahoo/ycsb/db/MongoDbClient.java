@@ -134,7 +134,7 @@ public class MongoDbClient extends DB {
 	 */
 	@Override
 	public void init() throws DBException {
-		this.mongoClient = new MongoClient(this.ipAddress, new MongoClientOptions.Builder().serverSelectionTimeout(1000)
+		this.mongoClient = new MongoClient(this.ipAddress, new MongoClientOptions.Builder().serverSelectionTimeout(10000)
 				.connectionsPerHost(500).writeConcern(WriteConcern.ACKNOWLEDGED).build());
 	}
 

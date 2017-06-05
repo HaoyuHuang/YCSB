@@ -34,9 +34,9 @@ public class RedisLease {
 				e.printStackTrace();
 			}
 			numberOfBackOffs.incrementAndGet();
-			if (tries >= 10) {
-				System.out.println("acquire lease on key " + key);
-			}
+//			if (tries >= 10) {
+//				System.out.println("acquire lease on key " + key);
+//			}
 			tries++;
 		}
 	}
@@ -52,6 +52,7 @@ public class RedisLease {
 		if ((long) redisClient.evalsha(id, RedisLuaScripts.RELEASE_LEASE, keys, Collections.<String> emptyList()) == 0) {
 			
 		}
+//	  redisClient.del(id, key);
 	}
 
 }

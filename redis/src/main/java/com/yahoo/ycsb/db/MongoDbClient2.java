@@ -66,7 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see <a href="http://docs.mongodb.org/ecosystem/drivers/java/">MongoDB Inc.
  *      driver</a>
  */
-public class MongoDbClient extends DB {
+public class MongoDbClient2 extends DB {
 
   /** Used to include a field in a response. */
   private static final Integer INCLUDE = Integer.valueOf(1);

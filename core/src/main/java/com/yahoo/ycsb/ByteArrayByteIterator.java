@@ -53,4 +53,7 @@ public class ByteArrayByteIterator extends ByteIterator {
     return len - off;
   }
 
+  public void reset() {
+    off = 0;
+  }
 }

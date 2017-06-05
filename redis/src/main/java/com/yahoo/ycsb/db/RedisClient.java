@@ -73,7 +73,10 @@ public class RedisClient extends DB {
 	public static final String PHASE_PROPERTY = "phase";
 	public static final String SUCCESS_WRITE_PROPERTY = "successWrite";
 
+	@Override
 	public void init() throws DBException {
+	  
+	  System.out.println("############# Version 5.3");
 
 		INIT_COUNT.incrementAndGet();
 
@@ -209,7 +212,7 @@ public class RedisClient extends DB {
 		}
 
 		if (result.isEmpty() && !TardisClientConfig.measureSuccessWrites) {
-			System.out.println("BUG!!!!");
+//			System.out.println("BUG!!!!");
 			return recover(key, result);
 		}
 		return result.isEmpty() ? Status.ERROR : Status.OK;
@@ -282,7 +285,11 @@ public class RedisClient extends DB {
 				if (!isDBFailed.get()) {
 					
 					if (!RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.WRITE, key))) {
-						updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+					  if (!TardisClientConfig.SKIP_UPDATE_MONGO) {
+					    updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+					  } else {
+					    updateDBSuccess = true;
+					  }
 					}
 				} else {
 					updateDBSuccess = false;
