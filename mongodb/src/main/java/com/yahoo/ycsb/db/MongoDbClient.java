@@ -193,6 +193,7 @@ public class MongoDbClient extends DB {
       }
 
       url = OptionsSupport.updateUrl(url, props);
+      System.out.println("Mongo URL: "+url);
 
       if (!url.startsWith("mongodb://")) {
         System.err.println("ERROR: Invalid URL: '" + url

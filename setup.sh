@@ -9,13 +9,15 @@ mvn clean
 for client in ${CLIENT_IPS[@]}
 do
 	scp -r ~/ycsb/YCSB $client:~/ycsb/
-	ssh $client "cd ~/ycsb/YCSB && mvn -pl com.yahoo.ycsb:mongodb-binding -am clean package"
-	ssh $client "cd ~/ycsb/YCSB && mvn -pl com.yahoo.ycsb:redis-binding -am clean package"
+	ssh $client "cd ~/ycsb/YCSB && mvn -pl com.yahoo.ycsb:mongodb-binding -am clean package -Dmaven.test.skip=true"
+	ssh $client "cd ~/ycsb/YCSB && mvn -pl com.yahoo.ycsb:redis-binding -am clean package -Dmaven.test.skip=true"
 done
 
 # re-install the project locally.
-mvn -pl com.yahoo.ycsb:redis-binding -am clean package
-mvn -pl com.yahoo.ycsb:mongodb-binding -am clean package
+mvn -pl com.yahoo.ycsb:redis-binding -am clean package -Dmaven.test.skip=true
+mvn -pl com.yahoo.ycsb:mongodb-binding -am clean package -Dmaven.test.skip=true
+
+
 
 # copy CAMPServer over.
 #for cache in ${CACHE_IPS[@]}

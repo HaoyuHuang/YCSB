@@ -24,10 +24,7 @@ import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
-import com.yahoo.ycsb.workloads.CoreWorkload;
-
-import static com.yahoo.ycsb.db.TardisYCSBConfig.cacheServers;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getHashCode;
+import static com.yahoo.ycsb.db.TardisYCSBConfig.*;
 
 /**
  * MongoDB binding for YCSB framework using the MongoDB Inc. <a
@@ -64,7 +61,7 @@ public abstract class CADSMongoDbClient extends DB {
   
   protected byte[] read_buffer = new byte[1024*10];
 
-  protected boolean writeBack = false;
+  protected static int cacheMode = 0;
 
   private static DBSimulator dbStateSimulator = null;
 
@@ -99,7 +96,7 @@ public abstract class CADSMongoDbClient extends DB {
     Logger.getLogger(MemcachedLease.class).setLevel(Level.ERROR);
     Logger.getLogger(MongoDbClient.class).setLevel(Level.ERROR);
     
-    Logger.getLogger(CADSMongoDbClient.class).setLevel(Level.OFF);
+    Logger.getLogger(CADSMongoDbClient.class).setLevel(Level.ERROR);
     Logger.getLogger(TardisYCSBWorker.class).setLevel(Level.ERROR);
     Logger.getLogger(CADSWbMongoDbClient.class).setLevel(Level.ERROR);
     Logger.getLogger(CADSRedleaseMongoDbClient.class).setLevel(Level.ERROR);
@@ -152,10 +149,31 @@ public abstract class CADSMongoDbClient extends DB {
           }
           System.out.println("Full Warmup = " + TardisYCSBConfig.fullWarmUp);
           
-          if (getProperties().getProperty(TardisYCSBConfig.KEY_WRITE_BACK) != null) {
-            writeBack = Boolean.parseBoolean(getProperties().getProperty(TardisYCSBConfig.KEY_WRITE_BACK));       
+          if (getProperties().getProperty(TardisYCSBConfig.KEY_AR_CHECK_SLEEP_TIME) != null) {
+            TardisYCSBConfig.RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW = 
+                Integer.parseInt(getProperties().getProperty(
+                    TardisYCSBConfig.KEY_AR_CHECK_SLEEP_TIME));
           }
-          System.out.println("Write Back = " + writeBack);
+          System.out.println("AR Check Sleep Time = "+ TardisYCSBConfig.RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW);
+          
+          if (getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MODE) != null) {
+            String mode = getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MODE);
+            switch (mode) {
+            case "nocache":
+              cacheMode = CACHE_NO_CACHE;
+              break;
+            case "around":
+              cacheMode = CACHE_WRITE_AROUND;
+              break;
+            case "through":
+              cacheMode = CACHE_WRITE_THROUGH;
+              break;
+            case "back":
+              cacheMode = CACHE_WRITE_BACK;
+              break;
+            }
+          }
+          System.out.println("Memcached Mode = " + cacheMode);
           
           if (getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MEMORY) != null) {
             TardisYCSBConfig.cacheMemoryMB = Integer.parseInt(getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MEMORY));
@@ -227,7 +245,7 @@ public abstract class CADSMongoDbClient extends DB {
             NUM_ACTIVE_RECOVERY_WORKERS = Integer.parseInt(getProperties().getProperty("numarworker"));
           }
           
-          int alpha = 0;
+          int alpha = 5;
           if (getProperties().getProperty("alpha") != null) {
             alpha = Integer.parseInt(getProperties().getProperty("alpha"));
             System.out.println("Alpha = "+alpha);

@@ -10,15 +10,8 @@ import com.meetup.memcached.MemcachedLease;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.DELIMITER;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getEWLogKey;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getUserLogLeaseKey;
+import static com.yahoo.ycsb.db.TardisYCSBConfig.*;
 import static com.yahoo.ycsb.db.MongoDbClientDelegate.isDatabaseFailed;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getHashCode;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.sleepLeaseRetry;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.extractUserId;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.LEASE_TIMEOUT;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getEWLogMutationLeaseKeyFromUserId;
 
 /**
  * MongoDB binding for YCSB framework using the MongoDB Inc. <a
@@ -56,13 +49,16 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
 
   @Override
   public Status read(String table, String key, Set<String> fields,
-      HashMap<String, ByteIterator> result) {
+      HashMap<String, ByteIterator> result) {  
+    logger.debug("Read user with key="+key+".");
+    
+    if (cacheMode == CACHE_NO_CACHE) {
+      return client.read(table, key, fields, result);
+    }
     
     if (TardisYCSBConfig.monitorSpaceWritesRatio) {
       return Status.OK;
     }
-    
-    logger.debug("Read user with key="+key+".");
     
     long id = extractUserId(key);
     Status status = Status.OK; 
@@ -72,19 +68,19 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
         leaseClient.acquireTillSuccess(
             getUserLogLeaseKey(id), getHashCode(id), TardisYCSBConfig.LEASE_TIMEOUT);
       }
-      
+
       byte[] payload = (byte[]) mc.get(key, getHashCode(id), false);
       if (payload != null) {
-        logger.debug("Cache hit.");
+        logger.debug("Cache hit key="+key);
         cacheHits.incrementAndGet();
         CacheUtilities.unMarshallHashMap(result, payload, read_buffer);
         return status;
       }
-      
+       
       if (TardisYCSBConfig.fullWarmUp) {
         logger.fatal("BUG: cache miss read key=" + key);
       }
-      logger.debug("Cache miss.");
+      logger.debug("Cache miss key="+key);
       cacheMisses.incrementAndGet();
       
       if (isDatabaseFailed.get()) {
@@ -97,7 +93,7 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
               getHashCode(id), TardisYCSBConfig.LEASE_TIMEOUT);
         }
       
-        if (!RecoveryResult.FAIL.equals(
+        if (cacheMode != CACHE_WRITE_BACK || !RecoveryResult.FAIL.equals(
             recovery.recover(RecoveryCaller.READ, key, id, read_buffer))) {
           status = client.read(table, key, fields, result);
           if (status != Status.OK) {
@@ -105,7 +101,9 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
           }
         
           payload = CacheUtilities.SerializeHashMap(result);
-          mc.set(key, payload, getHashCode(id));        
+          mc.set(key, payload, getHashCode(id));
+          logger.debug("Set key to cache successfully key="+key
+              +", payload size="+payload.length);
         } else {
           return Status.SERVICE_UNAVAILABLE;
         }      
@@ -138,10 +136,14 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
       HashMap<String, ByteIterator> values) {
     logger.debug("Update key="+key);
     
+    if (cacheMode == CACHE_NO_CACHE) {
+      return client.update(table, key, values);
+    }
+    
     long id = extractUserId(key);
     Status status = Status.OK;
     boolean cacheUpdateFailed = false;
-    boolean updateInviteeFailed = false;
+    boolean updateFailed = false;
     boolean firstTimeDirty = false;
     
     try {
@@ -150,24 +152,37 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
             getHashCode(id), TardisYCSBConfig.LEASE_TIMEOUT);
       }
       
-      byte[] payload = (byte[]) mc.get(key, getHashCode(id), false);      
-      HashMap<String, ByteIterator> m = new HashMap<String, ByteIterator>();
-      if (payload != null) {
-        logger.debug("Cache hit. Update cache value.");
-        CacheUtilities.unMarshallHashMap(m, payload, read_buffer);    
-        m.putAll(values);
-        payload = CacheUtilities.SerializeHashMap(m);
-        if (mc.set(key, payload, getHashCode(id)) == false) {
-          if (TardisYCSBConfig.monitorSpaceWritesRatio) {
-            throw new Exception();
+      switch (cacheMode) {
+      case CACHE_WRITE_AROUND:
+        // delete key-value pair
+        mc.delete(key, getHashCode(id), null);
+        logger.debug("Write around delete successfully key="+key);
+        break;
+      case CACHE_WRITE_THROUGH:
+      case CACHE_WRITE_BACK:
+        // update key-value pair
+        byte[] payload = (byte[]) mc.get(key, getHashCode(id), false);      
+        HashMap<String, ByteIterator> m = new HashMap<String, ByteIterator>();
+        if (payload != null) {
+          logger.debug("Cache hit. Update cache value.");
+          CacheUtilities.unMarshallHashMap(m, payload, read_buffer);    
+          m.putAll(values);
+          payload = CacheUtilities.SerializeHashMap(m);
+          if (mc.set(key, payload, getHashCode(id)) == false) {
+            if (TardisYCSBConfig.monitorSpaceWritesRatio) {
+              throw new Exception();
+            }
           }
-        }
-      } else {
-        logger.debug("Got no cache value.");
-        cacheUpdateFailed = true;
+        } else {
+          logger.debug("Got no cache value.");
+          cacheUpdateFailed = true;
+        }        
+        break;
+      default:
+        break;  
       }
       
-      if (!writeBack && !isDatabaseFailed.get()) {
+      if ((cacheMode != CACHE_WRITE_BACK) && !isDatabaseFailed.get()) {
         // database is up
         if (!RecoveryResult.FAIL.equals(
             recovery.recover(RecoveryCaller.WRITE, key, id, read_buffer))) {
@@ -180,19 +195,20 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
           
           if (status != Status.OK) {
             logger.debug("Update to PStore failed.");
-            updateInviteeFailed = true;
+            updateFailed = true;
           }
         } else {
           logger.debug("Recover failed.");
-          updateInviteeFailed = true;
+          updateFailed = true;
         }
       } else {
         logger.debug("Write back mode or the database still fails.");
-        updateInviteeFailed = true;
+        updateFailed = true;
       }
       
-      if (updateInviteeFailed) {
-        logger.debug("Tardis the update.");
+      if ((cacheMode == CACHE_WRITE_BACK) || 
+          (cacheMode == CACHE_WRITE_THROUGH && updateFailed)) {
+        logger.debug("Tardis buffer write");
         if (cacheUpdateFailed || TardisYCSBConfig.monitorLostWrite) {          
           firstTimeDirty = recovery.bufferWrites(key, id, values, read_buffer);
           logger.debug("firstTimeDirty="+firstTimeDirty);
@@ -201,7 +217,7 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
           logger.debug("firstTimeDirty="+firstTimeDirty);
         }
       }
-      logger.debug("Uppdate database " + updateInviteeFailed + 
+      logger.debug("Uppdate database " + updateFailed + 
           " update cache " + cacheUpdateFailed);
     } catch (Exception e) {
       e.printStackTrace();
@@ -211,7 +227,7 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
       if (!TardisYCSBConfig.monitorSpaceWritesRatio) {
         leaseClient.releaseLease(getUserLogLeaseKey(id), getHashCode(id));
       }
-      if (updateInviteeFailed) {
+      if (updateFailed) {
         try {
           insertToEWList(firstTimeDirty, key, id);
         } catch (Exception e) {
@@ -222,7 +238,6 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
     }
     
     TardisRecoveryEngine.successfulWriteCount.incrementAndGet();
-    
     return status;
   }
   
@@ -308,7 +323,7 @@ public class CADSRedleaseMongoDbClient extends CADSMongoDbClient {
   @Override
   public void init() throws DBException {
     super.init();
-    System.out.println("########## Version 2");
+    System.out.println("########## Version 3");
     
     leaseClient = new MemcachedLease(1, mc, false);
     recovery = new RecoveryEngine(mc, client);

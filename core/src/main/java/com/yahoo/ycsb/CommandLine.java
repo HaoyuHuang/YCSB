@@ -130,6 +130,9 @@ public final class CommandLine {
       }
 
       if (input.compareTo("quit") == 0) {
+        try {
+          db.cleanup();
+        } catch (Exception e) {}
         break;
       }
 

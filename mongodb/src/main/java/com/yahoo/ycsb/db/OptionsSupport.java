@@ -63,6 +63,7 @@ public final class OptionsSupport {
     // write concern
     String writeConcernType =
         props.getProperty("mongodb.writeConcern", UNAVAILABLE).toLowerCase();
+    System.out.println("WriteConcern: "+writeConcernType);
     if (!UNAVAILABLE.equals(writeConcernType)) {
       if ("errors_ignored".equals(writeConcernType)) {
         result = addUrlOption(result, "w", "0");
@@ -74,7 +75,7 @@ public final class OptionsSupport {
         result = addUrlOption(result, "journal", "true"); // this is the
         // documented option
         // name
-        result = addUrlOption(result, "j", "true"); // but keep this until
+        //result = addUrlOption(result, "j", "true"); // but keep this until
         // MongoDB Java driver
         // supports "journal" option
       } else if ("replica_acknowledged".equals(writeConcernType)) {
@@ -131,7 +132,7 @@ public final class OptionsSupport {
       if (url.contains("?")) {
         return url + "&" + fullName + value;
       }
-      return url + "?" + fullName + value;
+      return url + "/?" + fullName + value;
     }
     return url;
   }

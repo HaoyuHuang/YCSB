@@ -88,9 +88,10 @@ public class RecoveryEngine {
         byte[] payload = (byte[]) memcachedClient.get(key, getHashCode(userId), false);
         if (payload != null) {
           CacheUtilities.unMarshallHashMap(values, payload, read_buffer);
-        } else {
-          System.out.println("Got null value "+key);
-        }
+        } 
+//        else {
+//          System.out.println("Got null value "+key);
+//        }
       } else {	       
         CacheUtilities.unMarshallHashMap(values, pw, read_buffer);
       }
@@ -99,9 +100,11 @@ public class RecoveryEngine {
       Status status = Status.OK;
       if (values.size() != 0) {
         status = mongoClient.update(CoreWorkload.TABLENAME_PROPERTY_DEFAULT, key, values);
-      } else {
-        logger.fatal("Something went wrong. Expect pending writes here.");
-      }
+        logger.debug("Update data store success key="+key);
+      } 
+//      else {
+//        logger.fatal("Something went wrong. Expect pending writes here.");
+//      }
       
       if (status != Status.OK) {
         return RecoveryResult.FAIL;
@@ -199,10 +202,19 @@ public class RecoveryEngine {
   public boolean bufferWrites(String key, long id,
       HashMap<String, ByteIterator> values, byte[] read_buffer) throws Exception {
     String logKey = TardisYCSBConfig.getPWLogKey(id);
-    
-    byte[] payload = (byte[]) memcachedClient.get(logKey, getHashCode(id), false);
-    
     boolean isFirstTime = false;
+    
+    Object obj = memcachedClient.get(logKey, getHashCode(id), false);    
+    byte[] payload = null;
+    
+    if (obj != null && obj instanceof byte[]) {
+      payload = (byte[]) obj;
+    } else {
+      if (obj != null) {
+        
+      }
+    }
+      
     HashMap<String, ByteIterator> m = new HashMap<>();
     if (payload != null) {
       logger.debug("Got the PW value key="+logKey);

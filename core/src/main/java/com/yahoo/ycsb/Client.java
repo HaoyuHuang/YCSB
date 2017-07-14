@@ -20,14 +20,19 @@ package com.yahoo.ycsb;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
+
 import org.apache.htrace.core.HTraceConfiguration;
 import org.apache.htrace.core.TraceScope;
 import org.apache.htrace.core.Tracer;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -369,6 +374,7 @@ class ClientThread implements Runnable {
   private int opcount;
   private double targetOpsPerMs;
 
+  private int opsSLA;
   private int opsdone;
   private int threadid;
   private int threadcount;
@@ -376,6 +382,8 @@ class ClientThread implements Runnable {
   private Properties props;
   private long targetOpsTickNs;
   private final Measurements measurements;
+  private boolean slaReport = false;
+  private int slaResponseTime = 0;
 
   /**
    * Constructor.
@@ -391,10 +399,14 @@ class ClientThread implements Runnable {
   public ClientThread(DB db, boolean dotransactions, Workload workload, Properties props, int opcount,
                       double targetperthreadperms, CountDownLatch completeLatch) {
     this.db = db;
+    this.slaReport = db.getProperties().containsKey("slareport");
+    this.slaResponseTime = Integer.parseInt(db.getProperties().getProperty("slaresponsetime"));
+    
     this.dotransactions = dotransactions;
     this.workload = workload;
     this.opcount = opcount;
     opsdone = 0;
+    opsSLA = 0;
     if (targetperthreadperms > 0) {
       targetOpsPerMs = targetperthreadperms;
       targetOpsTickNs = (long) (1000000 / targetOpsPerMs);
@@ -407,6 +419,10 @@ class ClientThread implements Runnable {
 
   public int getOpsDone() {
     return opsdone;
+  }
+  
+  public int getOpsSLA() {
+    return opsSLA;
   }
 
   @Override
@@ -443,11 +459,19 @@ class ClientThread implements Runnable {
 
         while (((opcount == 0) || (opsdone < opcount)) && !workload.isStopRequested()) {
 
+          long start = System.currentTimeMillis();
+          
           if (!workload.doTransaction(db, workloadstate)) {
             break;
           }
+          
+          long responseTime = System.currentTimeMillis() - start;
 
           opsdone++;
+          
+          if (slaReport && responseTime <= slaResponseTime) {
+            opsSLA++;
+          }
 
           throttleNanos(startTimeNanos);
         }
@@ -767,6 +791,7 @@ public final class Client {
     long st;
     long en;
     int opsDone;
+    int opsSLA;
 
     try (final TraceScope span = tracer.newScope(CLIENT_WORKLOAD_SPAN)) {
 
@@ -787,11 +812,13 @@ public final class Client {
       }
 
       opsDone = 0;
+      opsSLA = 0;
 
       for (Map.Entry<Thread, ClientThread> entry : threads.entrySet()) {
         try {
           entry.getKey().join();
           opsDone += entry.getValue().getOpsDone();
+          opsSLA += entry.getValue().getOpsSLA();
         } catch (InterruptedException ignored) {
           // ignored
         }
@@ -824,6 +851,25 @@ public final class Client {
       e.printStackTrace();
       e.printStackTrace(System.out);
       System.exit(0);
+    }
+    
+    if (props.containsKey("slareport")) {
+      String slaReportPath = props.getProperty("slareport");
+      double throughput = 1000.0 * (opsDone) / (en-st);
+      StringBuilder sb = new StringBuilder();
+      sb.append(props.getProperty("slaresponsetime")+"\n");
+      sb.append(threadcount + "\n");
+      sb.append(throughput+"\n");
+      sb.append(opsDone+"\n");
+      sb.append(opsSLA);
+
+      try{
+        PrintWriter writer = new PrintWriter(slaReportPath, "UTF-8");
+        writer.print(sb.toString());
+        writer.close();
+      } catch (IOException e) {
+        System.out.println("Error when writing SLA report. Probably the path is incorrect. "+slaReportPath);
+      }
     }
 
     try {

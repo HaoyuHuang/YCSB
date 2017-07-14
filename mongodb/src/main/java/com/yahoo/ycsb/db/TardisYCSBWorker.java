@@ -10,6 +10,7 @@ import static com.yahoo.ycsb.db.TardisYCSBConfig.getUserLogLeaseKey;
 
 import java.io.IOException;
 import java.rmi.dgc.Lease;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,7 +37,7 @@ public class TardisYCSBWorker extends Thread {
   static volatile boolean isRunning = true;
 
   public static final int CONTEXTUAL_LEASE = 0;
-  public static final int RED_LEASE = 0;
+  public static final int RED_LEASE = 1;
   public static int leaseMode = RED_LEASE;
   private final RecoveryEngine recovery;
 
@@ -45,13 +46,13 @@ public class TardisYCSBWorker extends Thread {
 
   static Random rand = new Random();
   private int ALPHA = 5;
-  long sleepTime = RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW;
+  static long sleepTime = RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW;
   static final long checkSleepTime = 1000;
 
   byte[] read_buffer;
   private final ExponentialBackoff backoff = new ExponentialBackoff(1000, 100);
 
-  private final static Logger logger = Logger.getLogger(CADSWbMongoDbClient.class);
+  private final static Logger logger = Logger.getLogger(TardisYCSBWorker.class);
 
   public TardisYCSBWorker(MongoDbClientDelegate client, int alpha, 
       String[] serverlist) {
@@ -93,10 +94,12 @@ public class TardisYCSBWorker extends Thread {
           // get an empty ew, move on
           idx = getNextIdx(idx);        
           continue;
-        }
+        }        
 
         // pick random alpha ids
         keyset = (Set<String>) pickRandom(keyset, ALPHA);
+        logger.debug("Got buffered writes...");
+        logger.debug(Arrays.toString(keyset.toArray(new String[0])));
 
         Set<String> recoverKeys = new HashSet<>();
         for (String key: keyset) {
@@ -115,7 +118,7 @@ public class TardisYCSBWorker extends Thread {
         if (recoverKeys.size() > 0) {
           if (leaseMode == CONTEXTUAL_LEASE)
             updateEWContextualLease(EWs[idx], recoverKeys);
-          else
+          else if (leaseMode == RED_LEASE)
             updateEWRedlease(EWs[idx], recoverKeys, idx);
         }
 
@@ -158,7 +161,9 @@ public class TardisYCSBWorker extends Thread {
           recoverKeys.remove(k);
       }
 
-      logger.debug("new dirty users " + recoverKeys);
+      if (recoverKeys.size() > 0) {
+        logger.debug("new dirty users " + recoverKeys);
+      }
       // remove recovered users from EW list
       newEW.removeAll(recoverKeys);
       if (newEW.isEmpty()) {
@@ -221,6 +226,8 @@ public class TardisYCSBWorker extends Thread {
   }
 
   private void recoverWithRedlease(String key, Set<String> recoverKeys) {
+    logger.debug("Recover key="+key);
+    
     long userId = TardisYCSBConfig.extractUserId(key);
     Integer hashCode = getHashCode(userId);
     
@@ -231,12 +238,21 @@ public class TardisYCSBWorker extends Thread {
     }
 
     if (leaseClient.acquireLease(
-        getUserLogLeaseKey(userId), hashCode, LEASE_TIMEOUT)) {
+        getUserLogLeaseKey(userId), hashCode, LEASE_TIMEOUT)) {      
       RecoveryResult ret = recovery.recover(RecoveryCaller.AR, key, userId, read_buffer);
+      logger.debug("Recover success key="+key);
 
       if (!RecoveryResult.FAIL.equals(ret)) {
         recoverKeys.add(key);
       }
+      
+      try {
+        mc.delete(logKey, getHashCode(userId), null);
+      } catch (Exception e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+      
       leaseClient.releaseLease(
           getUserLogLeaseKey(userId), hashCode);
 

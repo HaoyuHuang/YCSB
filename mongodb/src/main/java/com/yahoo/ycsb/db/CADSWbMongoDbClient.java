@@ -16,13 +16,8 @@ import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
 
-import static com.yahoo.ycsb.db.TardisYCSBConfig.DELIMITER;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.ACT_READ;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.ACT_UPDATE;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getEWLogKey;
+import static com.yahoo.ycsb.db.TardisYCSBConfig.*;
 import static com.yahoo.ycsb.db.MongoDbClientDelegate.isDatabaseFailed;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.getHashCode;
-import static com.yahoo.ycsb.db.TardisYCSBConfig.sleepLeaseRetry;
 
 /**
  * MongoDB binding for YCSB framework using the MongoDB Inc. <a
@@ -81,7 +76,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
 
       boolean recover = true;
 
-      if ((!writeBack || (writeBack && val.getValue() == null)) 
+      if ((cacheMode != CACHE_WRITE_BACK || (cacheMode == CACHE_WRITE_BACK && val.getValue() == null)) 
           && READ_RECOVER && !isDatabaseFailed.get()) {
         while (true) {
           String tid = mc.generateSID();
@@ -236,7 +231,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         Boolean recover = null;
         if (val.isPending()) {
           logger.debug("Value has pending buffered writes.");
-          if (!writeBack && WRITE_RECOVER && !isDatabaseFailed.get()) {
+          if (cacheMode != CACHE_WRITE_BACK && WRITE_RECOVER && !isDatabaseFailed.get()) {
             try {
               TardisYCSBWorker.docRecover(mc, sid, key, hashCode, 
                   client, values, ACT_UPDATE, read_buffer);
@@ -263,7 +258,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         }
         
         if (recover == null) {          
-          if (!writeBack && client.update(table, key, values) == Status.OK) {
+          if (cacheMode != CACHE_WRITE_BACK && client.update(table, key, values) == Status.OK) {
             logger.info("No recover happened. Update table successfully.");            
             recover = true;
           } else {

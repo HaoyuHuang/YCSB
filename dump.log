@@ -1,0 +1,137 @@
+2017-06-30 01:57:18
+Full thread dump Java HotSpot(TM) 64-Bit Server VM (25.91-b14 mixed mode):
+
+"Attach Listener" #17 daemon prio=9 os_prio=0 tid=0x00007f6748001000 nid=0x173f waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"DestroyJavaVM" #16 prio=5 os_prio=0 tid=0x00007f67ec00b000 nid=0x16b9 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"pool-1-thread-1" #15 prio=5 os_prio=0 tid=0x00007f67ec5a4800 nid=0x16df waiting on condition [0x00007f67650a4000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.yahoo.ycsb.db.DBSimulator.call(DBSimulator.java:52)
+	at com.yahoo.ycsb.db.DBSimulator.call(DBSimulator.java:12)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+"Active Recovery Worker 0" #14 prio=5 os_prio=0 tid=0x00007f67ec5a3000 nid=0x16de waiting on condition [0x00007f67651a5000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.yahoo.ycsb.db.TardisYCSBWorker.sleepFor(TardisYCSBWorker.java:274)
+	at com.yahoo.ycsb.db.TardisYCSBWorker.run(TardisYCSBWorker.java:132)
+
+"pool-2-thread-1" #13 daemon prio=5 os_prio=0 tid=0x00007f67ec59a800 nid=0x16dc waiting on condition [0x00007f67652a6000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at sun.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000004ce036188> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:215)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:2078)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:1093)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:809)
+	at java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1067)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1127)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+"cluster-ClusterId{value='59561240b562d316b8c8b600', description='null'}-localhost:27017" #12 daemon prio=5 os_prio=0 tid=0x00007f67ec578800 nid=0x16db waiting on condition [0x00007f67653a7000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at sun.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0x00000004ce085a28> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:215)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:2078)
+	at com.mongodb.connection.DefaultServerMonitor$ServerMonitorRunnable.waitForSignalOrTimeout(DefaultServerMonitor.java:224)
+	at com.mongodb.connection.DefaultServerMonitor$ServerMonitorRunnable.waitForNext(DefaultServerMonitor.java:205)
+	at com.mongodb.connection.DefaultServerMonitor$ServerMonitorRunnable.run(DefaultServerMonitor.java:153)
+	- locked <0x00000004ce00e518> (a com.mongodb.connection.DefaultServerMonitor$ServerMonitorRunnable)
+	at java.lang.Thread.run(Thread.java:745)
+
+"Service Thread" #10 daemon prio=9 os_prio=0 tid=0x00007f67ec237000 nid=0x16d8 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C1 CompilerThread3" #9 daemon prio=9 os_prio=0 tid=0x00007f67ec22b800 nid=0x16d7 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread2" #8 daemon prio=9 os_prio=0 tid=0x00007f67ec229800 nid=0x16d6 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread1" #7 daemon prio=9 os_prio=0 tid=0x00007f67ec227800 nid=0x16d5 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread0" #6 daemon prio=9 os_prio=0 tid=0x00007f67ec225800 nid=0x16d4 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Signal Dispatcher" #5 daemon prio=9 os_prio=0 tid=0x00007f67ec223000 nid=0x16d3 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Surrogate Locker Thread (Concurrent GC)" #4 daemon prio=9 os_prio=0 tid=0x00007f67ec221000 nid=0x16d2 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Finalizer" #3 daemon prio=8 os_prio=0 tid=0x00007f67ec1ea000 nid=0x16d1 in Object.wait() [0x00007f6767021000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x00000004ce02f028> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:143)
+	- locked <0x00000004ce02f028> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:164)
+	at java.lang.ref.Finalizer$FinalizerThread.run(Finalizer.java:209)
+
+"Reference Handler" #2 daemon prio=10 os_prio=0 tid=0x00007f67ec1e5800 nid=0x16d0 in Object.wait() [0x00007f6767122000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x00000004ce02f1e0> (a java.lang.ref.Reference$Lock)
+	at java.lang.Object.wait(Object.java:502)
+	at java.lang.ref.Reference.tryHandlePending(Reference.java:191)
+	- locked <0x00000004ce02f1e0> (a java.lang.ref.Reference$Lock)
+	at java.lang.ref.Reference$ReferenceHandler.run(Reference.java:153)
+
+"VM Thread" os_prio=0 tid=0x00007f67ec1dd800 nid=0x16cf runnable 
+
+"Gang worker#0 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec022000 nid=0x16ba runnable 
+
+"Gang worker#1 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec024000 nid=0x16bb runnable 
+
+"Gang worker#2 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec025800 nid=0x16bc runnable 
+
+"Gang worker#3 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec027800 nid=0x16bd runnable 
+
+"Gang worker#4 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec029000 nid=0x16be runnable 
+
+"Gang worker#5 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec02b000 nid=0x16bf runnable 
+
+"Gang worker#6 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec02c800 nid=0x16c0 runnable 
+
+"Gang worker#7 (Parallel GC Threads)" os_prio=0 tid=0x00007f67ec02e800 nid=0x16c1 runnable 
+
+"G1 Main Concurrent Mark GC Thread" os_prio=0 tid=0x00007f67ec058000 nid=0x16cb runnable 
+
+"Gang worker#0 (G1 Parallel Marking Threads)" os_prio=0 tid=0x00007f67ec05a000 nid=0x16cc runnable 
+
+"Gang worker#1 (G1 Parallel Marking Threads)" os_prio=0 tid=0x00007f67ec05b800 nid=0x16cd runnable 
+
+"G1 Concurrent Refinement Thread#0" os_prio=0 tid=0x00007f67ec03f800 nid=0x16ca runnable 
+
+"G1 Concurrent Refinement Thread#1" os_prio=0 tid=0x00007f67ec03d800 nid=0x16c9 runnable 
+
+"G1 Concurrent Refinement Thread#2" os_prio=0 tid=0x00007f67ec03b800 nid=0x16c8 runnable 
+
+"G1 Concurrent Refinement Thread#3" os_prio=0 tid=0x00007f67ec03a000 nid=0x16c7 runnable 
+
+"G1 Concurrent Refinement Thread#4" os_prio=0 tid=0x00007f67ec038000 nid=0x16c6 runnable 
+
+"G1 Concurrent Refinement Thread#5" os_prio=0 tid=0x00007f67ec036800 nid=0x16c5 runnable 
+
+"G1 Concurrent Refinement Thread#6" os_prio=0 tid=0x00007f67ec034800 nid=0x16c4 runnable 
+
+"G1 Concurrent Refinement Thread#7" os_prio=0 tid=0x00007f67ec033000 nid=0x16c3 runnable 
+
+"G1 Concurrent Refinement Thread#8" os_prio=0 tid=0x00007f67ec031000 nid=0x16c2 runnable 
+
+"String Deduplication Thread" os_prio=0 tid=0x00007f67ec18b800 nid=0x16ce runnable 
+
+"VM Periodic Task Thread" os_prio=0 tid=0x00007f67ec23a800 nid=0x16d9 waiting on condition 
+
+JNI global references: 273
+

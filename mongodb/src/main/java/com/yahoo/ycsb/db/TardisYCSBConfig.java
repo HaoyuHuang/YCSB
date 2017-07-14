@@ -13,7 +13,7 @@ public class TardisYCSBConfig {
   public static final boolean SKIP_UPDATE_MONGO = false;
   
   public static final String KEY_EVENTUAL_WRITE_LOG = "EW";
-  public static final long RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW = 50;
+  public static long RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW = 50;
   public static final long STATS_EW_WORKER_TIME_BETWEEN_CHECKING_EW = 1000;
   
   public static final int QLEASE_BACKOFF = 50;
@@ -22,8 +22,13 @@ public class TardisYCSBConfig {
   protected static boolean fullWarmUp = true;
   
   public static final String KEY_FULL_WARM_UP = "fullwarmup";
-  public static final String KEY_WRITE_BACK = "writeback";
+  public static final String KEY_CACHE_MODE = "cachemode";
   public static final String KEY_CACHE_SERVERS = "cacheservers";
+  
+  protected static final int CACHE_NO_CACHE = 0;
+  protected static final int CACHE_WRITE_AROUND = 1;
+  protected static final int CACHE_WRITE_THROUGH = 2;
+  protected static final int CACHE_WRITE_BACK = 3;
   
   public static final String DELIMITER = ",";
   public static final String KEY_USER_PENDING_WRITES_LOG = "U";
@@ -38,6 +43,7 @@ public class TardisYCSBConfig {
   public static final String KEY_MONITOR_SPACE_WRITES = "monitorspacewrite";
   public static final String KEY_NUM_CACHE_SERVERS = "numcacheservers";
   public static final String KEY_PHASE = "phase";
+  public static final String KEY_AR_CHECK_SLEEP_TIME = "arsleeptime";
   
   public static String[] cacheServers = null;
   
