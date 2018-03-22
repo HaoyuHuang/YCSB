@@ -15,6 +15,7 @@ public class DBSimulator implements Callable<Void> {
 
 	private final AtomicBoolean failed;
 	private final long[] invtervals;
+	private final RedisRecoveryEngine recoveryEngine;
 	private int index;
 	private long now;
 
@@ -29,11 +30,12 @@ public class DBSimulator implements Callable<Void> {
 	 *            during the given interval. Start and end are relative time to
 	 *            when this class is created. Time unit is second.
 	 */
-	public DBSimulator(AtomicBoolean failed, long[] invtervals) {
+	public DBSimulator(AtomicBoolean failed, long[] invtervals, RedisRecoveryEngine recoveryEngine) {
 		super();
 		this.failed = failed;
 		this.invtervals = invtervals;
 		this.now = System.currentTimeMillis();
+		this.recoveryEngine = recoveryEngine;
 		System.out.println("created db state simulator");
 	}
 
@@ -50,6 +52,10 @@ public class DBSimulator implements Callable<Void> {
 				System.out.println("Crash at " + System.nanoTime());
 				failed.set(true);
 			} else if (now >= end) {
+				TardisMetrics.metrics.put("recover-start", String.valueOf(System.currentTimeMillis()));
+				TardisMetrics.metrics.put("recover-all-dirty-docs", String.valueOf(recoveryEngine.dirtyDocs()));
+				System.out.println(TardisMetrics.metrics);
+				
 				System.out.println("Back at " + System.nanoTime());
 				failed.set(false);
 				System.out.println("#########dbfailed " + failed.get());

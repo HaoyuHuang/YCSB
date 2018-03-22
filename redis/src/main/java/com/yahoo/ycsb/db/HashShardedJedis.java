@@ -51,7 +51,7 @@ public class HashShardedJedis {
 		if (clients.size() == 1) {
 			return 0;
 		}
-		return (int) (Long.parseLong(key.substring(4)) % clients.size());
+		return (int) (Long.parseLong(key) % clients.size());
 	}
 
 	public long setnx(int id, String key, String value) {

@@ -594,16 +594,15 @@ public class CoreWorkload extends Workload {
    * have no side effects other than DB operations.
    */
   @Override
-  public boolean doTransaction(DB db, Object threadstate) {
+  public Status doTransaction(DB db, Object threadstate) {
     String operation = operationchooser.nextString();
     if(operation == null) {
-      return false;
+      return Status.NOT_FOUND;
     }
 
     switch (operation) {
     case "READ":
-      doTransactionRead(db);
-      break;
+      return doTransactionRead(db);
     case "UPDATE":
       doTransactionUpdate(db);
       break;
@@ -617,7 +616,7 @@ public class CoreWorkload extends Workload {
       doTransactionReadModifyWrite(db);
     }
 
-    return true;
+    return Status.OK;
   }
 
   /**
@@ -660,7 +659,7 @@ public class CoreWorkload extends Workload {
     return keynum;
   }
 
-  public void doTransactionRead(DB db) {
+  public Status doTransactionRead(DB db) {
     // choose a random key
     int keynum = nextKeynum();
 
@@ -680,11 +679,12 @@ public class CoreWorkload extends Workload {
     }
 
     HashMap<String, ByteIterator> cells = new HashMap<String, ByteIterator>();
-    db.read(table, keyname, fields, cells);
+    Status status = db.read(table, keyname, fields, cells);
 
     if (dataintegrity) {
       verifyRow(keyname, cells);
     }
+    return status;
   }
 
   public void doTransactionReadModifyWrite(DB db) {

@@ -20,6 +20,7 @@ package com.yahoo.ycsb.workloads;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.RandomByteIterator;
+import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.WorkloadException;
 import com.yahoo.ycsb.generator.*;
 
@@ -239,10 +240,10 @@ public class RestWorkload extends CoreWorkload {
   }
 
   @Override
-  public boolean doTransaction(DB db, Object threadstate) {
+  public Status doTransaction(DB db, Object threadstate) {
     String operation = operationchooser.nextString();
     if (operation == null) {
-      return false;
+      return Status.NOT_FOUND;
     }
 
     switch (operation) {
@@ -258,7 +259,7 @@ public class RestWorkload extends CoreWorkload {
     default:
       doTransactionRead(db);
     }
-    return true;
+    return Status.OK;
   }
 
   /**
@@ -277,9 +278,9 @@ public class RestWorkload extends CoreWorkload {
   }
 
   @Override
-  public void doTransactionRead(DB db) {
+  public Status doTransactionRead(DB db) {
     HashMap<String, ByteIterator> result = new HashMap<String, ByteIterator>();
-    db.read(null, getNextURL(1), null, result);
+    return db.read(null, getNextURL(1), null, result);
   }
 
   @Override

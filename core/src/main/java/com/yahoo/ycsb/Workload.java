@@ -94,7 +94,7 @@ public abstract class Workload {
    * Return true otherwise. Return true for workloads that rely on operationcount. For workloads that read
    * traces from a file, return true when there are more to do, false when you are done.
    */
-  public abstract boolean doTransaction(DB db, Object threadstate);
+  public abstract Status doTransaction(DB db, Object threadstate);
 
   /**
    * Allows scheduling a request to stop the workload.

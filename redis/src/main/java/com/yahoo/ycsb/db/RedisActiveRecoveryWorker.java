@@ -93,12 +93,12 @@ public class RedisActiveRecoveryWorker implements Callable<Void> {
 
 						if (RecoveryResult.FAIL.equals(ret)) {
 							backoff.backoff();
-						} else if (RecoveryResult.SUCCESS.equals(ret)) {
+						} else {
 							backoff.reset();
 						}
 					}
 				}
-
+				
 				if (recoveredKeys.isEmpty()) {
 					ewIndex = (ewIndex + 1) % NUM_EVENTUAL_WRITE_LOGS;
 					continue;

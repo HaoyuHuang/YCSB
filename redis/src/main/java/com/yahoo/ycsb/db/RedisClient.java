@@ -24,6 +24,9 @@
 
 package com.yahoo.ycsb.db;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -35,6 +38,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.json.JSONObject;
 
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
@@ -53,7 +58,6 @@ public class RedisClient extends DB {
 	private RedisLease lease;
 	private MongoDbClient mongo;
 	private List<String> luaKeys = new ArrayList<>();
-	private String phase;
 	private RedisRecoveryEngine recovery;
 
 	private static final AtomicBoolean isDBFailed = new AtomicBoolean(false);
@@ -70,21 +74,16 @@ public class RedisClient extends DB {
 	public static final String AR_WORKER_PROPERTY = "ar";
 	public static final String DB_FAIL_WORKER_PROPERTY = "dbfail";
 	public static final String ALPHA_PROPERTY = "alpha";
-	public static final String PHASE_PROPERTY = "phase";
 	public static final String SUCCESS_WRITE_PROPERTY = "successWrite";
 
 	@Override
 	public void init() throws DBException {
-	  
-	  System.out.println("############# Version 5.3");
+
+		System.out.println("############# Version 5.3");
 
 		INIT_COUNT.incrementAndGet();
 
 		Properties props = getProperties();
-		
-		props.forEach((k, v) -> {
-			System.out.println(k + "=" + v);
-		});
 
 		if (!props.containsKey(REDIS_HOSTS_PROPERTY)) {
 			throw new RuntimeException("redis hosts not specified");
@@ -102,19 +101,13 @@ public class RedisClient extends DB {
 			throw new RuntimeException("alpha not specified");
 		}
 
-		if (!props.containsKey(PHASE_PROPERTY)) {
-			throw new RuntimeException("phase not specified");
-		}
-
-		phase = props.getProperty(PHASE_PROPERTY);
-
 		int alpha = Integer.parseInt(props.getProperty(ALPHA_PROPERTY));
 
 		this.mongo = new MongoDbClientDelegate(props.getProperty(MONGO_HOST_PROPERTY), isDBFailed);
 		this.mongo.init();
-		
+
 		String[] urls = props.getProperty(REDIS_HOSTS_PROPERTY).split(",");
-		
+
 		jedis = new HashShardedJedis(urls);
 		lease = new RedisLease(jedis, "client");
 		recovery = new RedisRecoveryEngine(jedis, mongo);
@@ -123,15 +116,24 @@ public class RedisClient extends DB {
 			if (initLock.get()) {
 				return;
 			}
+
+			props.forEach((k, v) -> {
+				System.out.println(k + "=" + v);
+			});
+
+			TardisClientConfig.readApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("readBW", "true"));
+			TardisClientConfig.updateApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("updateBW", "true"));
+			TardisClientConfig.ARApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("arBW", "true"));
+			TardisClientConfig.writeBack = Boolean.parseBoolean(props.getProperty("writeBack", "false"));
 			
+			TardisClientConfig.RECOVERY_WORKER_SLEEP_TIME = Long.parseLong(props.getProperty("arSleep", "1000"));
+			TardisClientConfig.metricFile = props.getProperty("metricsFile");
+
 			jedis.loadScript();
-			
-			if ("load".equals(phase)) {
-				this.mongo.dropDatabase();
-			}
-			
+
 			if (props.containsKey(SUCCESS_WRITE_PROPERTY)) {
-				TardisClientConfig.measureSuccessWrites = Boolean.parseBoolean(props.getProperty(SUCCESS_WRITE_PROPERTY));
+				TardisClientConfig.measureSuccessWrites = Boolean
+						.parseBoolean(props.getProperty(SUCCESS_WRITE_PROPERTY));
 				isDBFailed.set(true);
 			}
 
@@ -143,11 +145,15 @@ public class RedisClient extends DB {
 				for (int i = 0; i < ints.length; i++) {
 					intervals[i] = Integer.parseInt(ints[i]);
 				}
-				dbSimulator = new DBSimulator(isDBFailed, intervals);
+				dbSimulator = new DBSimulator(isDBFailed, intervals, recovery);
 				threads.submit(dbSimulator);
 			}
 
 			int ar = Integer.parseInt(props.getProperty(AR_WORKER_PROPERTY));
+			if (!TardisClientConfig.ARApplyBufferedWrites) {
+				ar = 0;
+			}
+
 			for (int i = 0; i < ar; i++) {
 				HashShardedJedis jedis = new HashShardedJedis(urls);
 				RedisLease lease = new RedisLease(jedis, "client");
@@ -165,15 +171,8 @@ public class RedisClient extends DB {
 	public void cleanup() throws DBException {
 		if (INIT_COUNT.decrementAndGet() == 0) {
 			System.out.println("clean up!!!");
-			if ("load".equals(phase)) {
-				System.out.println("##### insert user into database");
-				this.mongo.insertMany();
-			} else {
-				System.out.println("##### drop database");
-//				this.mongo.dropDatabase();
-			}
-			
-			System.out.println("# of backoffs "  + RedisLease.numberOfBackOffs.get());
+
+			System.out.println("# of backoffs " + RedisLease.numberOfBackOffs.get());
 
 			workers.forEach(i -> {
 				i.shutdown();
@@ -183,6 +182,21 @@ public class RedisClient extends DB {
 			}
 			watcher.shutdown();
 			threads.shutdown();
+
+			TardisMetrics.metrics.put("recover-rem-dirty-docs", String.valueOf(recovery.dirtyDocs()));
+
+			try {
+				BufferedWriter bw = new BufferedWriter(new FileWriter(new File(TardisClientConfig.metricFile)));
+				JSONObject metrics = new JSONObject();
+				TardisMetrics.metrics.forEach((k, v) -> {
+					metrics.put(k, v);
+				});
+				bw.write(metrics.toString());
+				bw.close();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
 		}
 		jedis.close();
 		this.mongo.cleanup();
@@ -190,11 +204,13 @@ public class RedisClient extends DB {
 
 	@Override
 	public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
-		
+
+		key = key.substring(4);
+
 		if (TardisClientConfig.measureSuccessWrites) {
 			return Status.OK;
 		}
-		
+
 		int id = jedis.getKeyServerIndex(key);
 		if (fields == null) {
 			StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(id, TardisClientConfig.normalKey(key)));
@@ -212,7 +228,6 @@ public class RedisClient extends DB {
 		}
 
 		if (result.isEmpty() && !TardisClientConfig.measureSuccessWrites) {
-//			System.out.println("BUG!!!!");
 			return recover(key, result);
 		}
 		return result.isEmpty() ? Status.ERROR : Status.OK;
@@ -222,7 +237,8 @@ public class RedisClient extends DB {
 		int id = jedis.getKeyServerIndex(key);
 		lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
 		try {
-			if (RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.READ, key))) {
+			RecoveryResult res = recovery.recover(RecoveryCaller.READ, key);
+			if (RecoveryResult.FAIL.equals(res) || RecoveryResult.SKIP.equals(res)) {
 				return Status.ERROR;
 			}
 			HashMap<String, String> mongoResult = new HashMap<>();
@@ -242,9 +258,9 @@ public class RedisClient extends DB {
 	@Override
 	public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
 		int id = jedis.getKeyServerIndex(key);
-		
-		HashMap<String, String> fields = StringByteIterator.getStringMap(values); 
-		
+
+		HashMap<String, String> fields = StringByteIterator.getStringMap(values);
+
 		Object response = jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
 		this.mongo.insert(TardisClientConfig.normalKey(key), fields);
 
@@ -264,38 +280,50 @@ public class RedisClient extends DB {
 	@Override
 	public Status update(String table, String key, HashMap<String, ByteIterator> values) {
 
+		key = key.substring(4);
+
 		try {
 			int id = jedis.getKeyServerIndex(key);
 			HashMap<String, String> fields = StringByteIterator.getStringMap(values);
-			
+
 			boolean cacheKeyExist = false;
 			boolean updateDBSuccess = false;
 			boolean firstTimeDirty = false;
 
 			try {
 				lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
-				
+
 				cacheKeyExist = jedis.exists(id, TardisClientConfig.normalKey(key));
-				
+
 				if (cacheKeyExist) {
 					jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
 				}
-				
-				// insert into mongodb
-				if (!isDBFailed.get()) {
-					
-					if (!RecoveryResult.FAIL.equals(recovery.recover(RecoveryCaller.WRITE, key))) {
-					  if (!TardisClientConfig.SKIP_UPDATE_MONGO) {
-					    updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
-					  } else {
-					    updateDBSuccess = true;
-					  }
-					}
-				} else {
+
+				if (TardisClientConfig.writeBack) {
 					updateDBSuccess = false;
+				} else {
+					// insert into mongodb
+					if (!isDBFailed.get()) {
+						RecoveryResult res = recovery.recover(RecoveryCaller.WRITE, key);
+						switch (res) {
+						case FAIL:
+						case SKIP:
+							updateDBSuccess = false;
+							break;
+						case CLEAN:
+						case SUCCESS:
+							updateDBSuccess = mongo.update(TardisClientConfig.normalKey(key), fields).isOk();
+							break;
+						default:
+							break;
+						}
+					} else {
+						updateDBSuccess = false;
+					}
 				}
 
 				if (!updateDBSuccess) {
+					recovery.addDirtyDocumentId(key);
 					firstTimeDirty = !jedis.exists(id, TardisClientConfig.bufferedWriteKey(key));
 					if (cacheKeyExist) {
 						// put key as dirty
@@ -314,7 +342,7 @@ public class RedisClient extends DB {
 					jedis.sadd(id, TardisClientConfig.ewKey(key), key);
 					lease.releaseLease(id, TardisClientConfig.ewLeaseKey(key), luaKeys);
 				}
-				
+
 				if (TardisClientConfig.measureSuccessWrites) {
 					TardisClientConfig.numberOfSuccessfulWrites.incrementAndGet();
 				}

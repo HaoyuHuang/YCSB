@@ -13,12 +13,18 @@ public class TardisClientConfig {
 	
 	public static final boolean SKIP_UPDATE_MONGO = true;
 
-	public static final long RECOVERY_WORKER_SLEEP_TIME = 1000;
+	public static long RECOVERY_WORKER_SLEEP_TIME = 1000;
 
 	public static final long STATS_EW_WORKER_TIME_BETWEEN_CHECKING_EW = 1000;
 	public static final long STATS_SLAB_WORKER_TIME_BETWEEN_CHECKING_EW = 10000;
 
 	public static int NUM_EVENTUAL_WRITE_LOGS = 211;
+	
+	public static boolean writeBack = false;
+	public static boolean updateApplyBufferedWrites = false;
+	public static boolean readApplyBufferedWrites = false;
+	public static boolean ARApplyBufferedWrites = false;
+	
 
 	// configs related to pending writes log.
 	/**
@@ -43,6 +49,7 @@ public class TardisClientConfig {
 	public static final int DATABASE_FAILURE = 1000;
 	
 	public static boolean measureSuccessWrites = false;
+	public static String metricFile = "";
 	public static final AtomicInteger numberOfSuccessfulWrites = new AtomicInteger();
 	
 	public static String leaseKey(String key) {
@@ -54,7 +61,7 @@ public class TardisClientConfig {
 	}
 	
 	public static String normalKey(String key) {
-		return NORMAL_KEY_PREFIX + key;
+		return key;
 	}
 	
 	public static String ewLeaseKey(int id) {
@@ -62,7 +69,7 @@ public class TardisClientConfig {
 	}
 	
 	public static String ewLeaseKey(String key) {
-		return LEASE_KEY_EVENTUAL_WRITES_LOG + (Long.parseLong(key.substring(4)) % NUM_EVENTUAL_WRITE_LOGS);
+		return LEASE_KEY_EVENTUAL_WRITES_LOG + (Long.parseLong(key) % NUM_EVENTUAL_WRITE_LOGS);
 	}
 	
 	public static String keyFromBufferedWriteKey(String bufferedWriteKey) {
@@ -74,6 +81,6 @@ public class TardisClientConfig {
 	}
 	
 	public static String ewKey(String key) {
-		return KEY_EVENTUAL_WRITE_LOG + (Long.parseLong(key.substring(4)) % NUM_EVENTUAL_WRITE_LOGS);
+		return KEY_EVENTUAL_WRITE_LOG + (Long.parseLong(key) % NUM_EVENTUAL_WRITE_LOGS);
 	}
 }

@@ -72,12 +72,12 @@ public class MongoDbClient extends DB {
 	private static final List<Document> bulkInserts = new ArrayList<Document>();
 
 	private static final String MONGO_DB_NAME = "ycsb";
-	private static final String MONGO_TABLE = "users";
+	private static final String MONGO_TABLE = "usertable";
 	private final String ipAddress;
 
 	/**
-	 * Cleanup any state for this DB. Called once per DB instance; there is one
-	 * DB instance per client thread.
+	 * Cleanup any state for this DB. Called once per DB instance; there is one DB
+	 * instance per client thread.
 	 */
 	@Override
 	public void cleanup() throws DBException {
@@ -106,8 +106,8 @@ public class MongoDbClient extends DB {
 	 *            The name of the table
 	 * @param key
 	 *            The record key of the record to delete.
-	 * @return Zero on success, a non-zero error code on error. See the
-	 *         {@link DB} class's description for a discussion of error codes.
+	 * @return Zero on success, a non-zero error code on error. See the {@link DB}
+	 *         class's description for a discussion of error codes.
 	 */
 	@Override
 	public Status delete(String table, String key) {
@@ -116,7 +116,7 @@ public class MongoDbClient extends DB {
 			MongoCollection<Document> collection = this.mongoClient.getDatabase(MONGO_DB_NAME)
 					.getCollection(MONGO_TABLE);
 
-			DeleteResult result = collection.deleteOne(eq("_id", String.valueOf(key)));
+			DeleteResult result = collection.deleteOne(eq("_id", Long.parseLong(key)));
 			if (result.wasAcknowledged() && result.getDeletedCount() == 0) {
 				System.err.println("Nothing deleted for key " + key);
 				return Status.NOT_FOUND;
@@ -129,13 +129,13 @@ public class MongoDbClient extends DB {
 	}
 
 	/**
-	 * Initialize any state for this DB. Called once per DB instance; there is
-	 * one DB instance per client thread.
+	 * Initialize any state for this DB. Called once per DB instance; there is one
+	 * DB instance per client thread.
 	 */
 	@Override
 	public void init() throws DBException {
-		this.mongoClient = new MongoClient(this.ipAddress, new MongoClientOptions.Builder().serverSelectionTimeout(10000)
-				.connectionsPerHost(500).writeConcern(WriteConcern.ACKNOWLEDGED).build());
+		this.mongoClient = new MongoClient(this.ipAddress, new MongoClientOptions.Builder()
+				.serverSelectionTimeout(10000).connectionsPerHost(500).writeConcern(WriteConcern.ACKNOWLEDGED).build());
 	}
 
 	public MongoDbClient(String ip) {
@@ -144,8 +144,7 @@ public class MongoDbClient extends DB {
 
 	/**
 	 * Insert a record in the database. Any field/value pairs in the specified
-	 * values HashMap will be written into the record with the specified record
-	 * key.
+	 * values HashMap will be written into the record with the specified record key.
 	 * 
 	 * @param table
 	 *            The name of the table
@@ -153,16 +152,19 @@ public class MongoDbClient extends DB {
 	 *            The record key of the record to insert.
 	 * @param values
 	 *            A HashMap of field/value pairs to insert in the record
-	 * @return Zero on success, a non-zero error code on error. See the
-	 *         {@link DB} class's description for a discussion of error codes.
+	 * @return Zero on success, a non-zero error code on error. See the {@link DB}
+	 *         class's description for a discussion of error codes.
 	 */
 	@Override
 	public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
 		try {
-			Document toInsert = new Document("_id", key);
+			Document toInsert = new Document("_id", Long.parseLong(key));
 			Map<String, String> fields = StringByteIterator.getStringMap(values);
 
 			for (Map.Entry<String, String> entry : fields.entrySet()) {
+				if ("_id".equals(entry.getKey())) {
+					continue;
+				}
 				toInsert.put(entry.getKey(), entry.getValue());
 			}
 
@@ -177,12 +179,15 @@ public class MongoDbClient extends DB {
 			return Status.ERROR;
 		}
 	}
-	
+
 	public Status insert(String key, HashMap<String, String> values) {
 		try {
-			Document toInsert = new Document("_id", key);
+			Document toInsert = new Document("_id", Long.parseLong(key));
 
 			for (Map.Entry<String, String> entry : values.entrySet()) {
+				if ("_id".equals(entry.getKey())) {
+					continue;
+				}
 				toInsert.put(entry.getKey(), entry.getValue());
 			}
 
@@ -201,15 +206,16 @@ public class MongoDbClient extends DB {
 	public void insertMany() {
 		synchronized (bulkInserts) {
 			System.out.println("bulk inserts " + bulkInserts.size());
-			MongoCollection<Document> collection = this.mongoClient.getDatabase(MONGO_DB_NAME).getCollection(MONGO_TABLE);
+			MongoCollection<Document> collection = this.mongoClient.getDatabase(MONGO_DB_NAME)
+					.getCollection(MONGO_TABLE);
 			collection.insertMany(bulkInserts);
 			bulkInserts.clear();
 		}
 	}
 
 	/**
-	 * Read a record from the database. Each field/value pair from the result
-	 * will be stored in a HashMap.
+	 * Read a record from the database. Each field/value pair from the result will
+	 * be stored in a HashMap.
 	 * 
 	 * @param table
 	 *            The name of the table
@@ -227,7 +233,7 @@ public class MongoDbClient extends DB {
 			MongoCollection<Document> collection = this.mongoClient.getDatabase(MONGO_DB_NAME)
 					.getCollection(MONGO_TABLE);
 
-			FindIterable<Document> findIterable = collection.find(eq("_id", String.valueOf(key)));
+			FindIterable<Document> findIterable = collection.find(eq("_id", Long.parseLong(key)));
 
 			if (fields != null) {
 				Document projection = new Document();
@@ -254,9 +260,9 @@ public class MongoDbClient extends DB {
 			MongoCollection<Document> collection = this.mongoClient.getDatabase(MONGO_DB_NAME)
 					.getCollection(MONGO_TABLE);
 
-			FindIterable<Document> findIterable = collection.find(eq("_id", String.valueOf(key)));
+			FindIterable<Document> findIterable = collection.find(eq("_id", Long.parseLong(key)));
 			Document queryResult = findIterable.first();
-			
+
 			if (queryResult != null) {
 				queryResult.forEach((k, v) -> {
 					result.put(k, String.valueOf(v));
@@ -270,8 +276,8 @@ public class MongoDbClient extends DB {
 	}
 
 	/**
-	 * Perform a range scan for a set of records in the database. Each
-	 * field/value pair from the result will be stored in a HashMap.
+	 * Perform a range scan for a set of records in the database. Each field/value
+	 * pair from the result will be stored in a HashMap.
 	 * 
 	 * @param table
 	 *            The name of the table
@@ -284,8 +290,8 @@ public class MongoDbClient extends DB {
 	 * @param result
 	 *            A Vector of HashMaps, where each HashMap is a set field/value
 	 *            pairs for one record
-	 * @return Zero on success, a non-zero error code on error. See the
-	 *         {@link DB} class's description for a discussion of error codes.
+	 * @return Zero on success, a non-zero error code on error. See the {@link DB}
+	 *         class's description for a discussion of error codes.
 	 */
 	@Override
 	public Status scan(String table, String startkey, int recordcount, Set<String> fields,
@@ -295,8 +301,8 @@ public class MongoDbClient extends DB {
 
 	/**
 	 * Update a record in the database. Any field/value pairs in the specified
-	 * values HashMap will be written into the record with the specified record
-	 * key, overwriting any existing values with the same field name.
+	 * values HashMap will be written into the record with the specified record key,
+	 * overwriting any existing values with the same field name.
 	 * 
 	 * @param table
 	 *            The name of the table
@@ -318,11 +324,14 @@ public class MongoDbClient extends DB {
 			Map<String, String> values = StringByteIterator.getStringMap(value);
 
 			for (Map.Entry<String, String> entry : values.entrySet()) {
+				if ("_id".equals(entry.getKey())) {
+					continue;
+				}
 				fieldsToSet.put(entry.getKey(), entry.getValue());
 			}
 			Document update = new Document("$set", fieldsToSet);
 
-			UpdateResult result = collection.updateOne(eq("_id", String.valueOf(key)), update);
+			UpdateResult result = collection.updateOne(eq("_id", Long.parseLong(key)), update);
 			if (result.wasAcknowledged() && result.getMatchedCount() == 0) {
 				System.err.println("Nothing updated for key " + key);
 				return Status.NOT_FOUND;
@@ -342,11 +351,14 @@ public class MongoDbClient extends DB {
 			Document fieldsToSet = new Document();
 
 			for (Map.Entry<String, String> entry : values.entrySet()) {
+				if ("_id".equals(entry.getKey())) {
+					continue;
+				}
 				fieldsToSet.put(entry.getKey(), entry.getValue());
 			}
 			Document update = new Document("$set", fieldsToSet);
 
-			UpdateResult result = collection.updateOne(eq("_id", String.valueOf(key)), update);
+			UpdateResult result = collection.updateOne(eq("_id", Long.parseLong(key)), update);
 			if (result.wasAcknowledged() && result.getMatchedCount() == 0) {
 				System.err.println("Nothing updated for key " + key);
 				return Status.NOT_FOUND;
@@ -357,11 +369,11 @@ public class MongoDbClient extends DB {
 			return Status.ERROR;
 		}
 	}
-	
+
 	public static void main(String[] args) throws Exception {
 		MongoDbClient client = new MongoDbClient("127.0.0.1:27017");
 		client.update("Nuser2166894489591224238", new HashMap<>());
-//		client.cleanup();
+		// client.cleanup();
 	}
 
 	/**
@@ -375,7 +387,8 @@ public class MongoDbClient extends DB {
 	protected void fillMap(Map<String, ByteIterator> resultMap, Document obj) {
 		for (Map.Entry<String, Object> entry : obj.entrySet()) {
 			if (entry.getValue() instanceof Binary) {
-				resultMap.put(entry.getKey(), new ByteArrayByteIterator(((Binary) entry.getValue()).getData()));
+				resultMap.put(String.valueOf(entry.getKey()),
+						new ByteArrayByteIterator(((Binary) entry.getValue()).getData()));
 			}
 		}
 	}
