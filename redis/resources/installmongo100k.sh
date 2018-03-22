@@ -10,7 +10,7 @@ sudo apt-get install -y --allow-unauthenticated mongodb-org
 sudo service mongod stop
 
 # copy files
-sudo cp /proj/BG/haoyu/mongod.conf /etc/mongod.conf
+sudo cp /proj/BG/haoyu/mongod-j.conf /etc/mongod.conf
 sudo rm -rf /var/lib/mongodb/*
 
 sudo su -c "/usr/testbed/bin/mkextrafs /mnt"

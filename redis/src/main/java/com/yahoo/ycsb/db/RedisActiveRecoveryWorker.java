@@ -47,6 +47,7 @@ public class RedisActiveRecoveryWorker implements Callable<Void> {
 
 			int start = this.r.nextInt(NUM_EVENTUAL_WRITE_LOGS);
 			int ewIndex = start;
+			boolean hasDirty = false;
 			do {
 
 				if (!isRunning) {
@@ -65,6 +66,9 @@ public class RedisActiveRecoveryWorker implements Callable<Void> {
 				Set<String> recoveredKeys = new HashSet<>();
 
 				List<String> dirtyKeys = RandomUtility.randomSampling(dirtyUserIds, alpha);
+				if (!dirtyKeys.isEmpty()) {
+					hasDirty = true;
+				}
 				
 				for (String dirtyKey : dirtyKeys) {
 
@@ -137,7 +141,9 @@ public class RedisActiveRecoveryWorker implements Callable<Void> {
 				}
 				ewIndex = (ewIndex + 1) % NUM_EVENTUAL_WRITE_LOGS;
 			} while (ewIndex != start);
-			sleep();
+			if (!hasDirty) {
+				sleep();
+			}
 		}
 		return null;
 	}

@@ -117,7 +117,7 @@ run_exp() {
     sleep 5
     
     echo "Warmup"
-    cmd="cd $ycsb_dir && ./bin/ycsb run $db -P workloads/workloadc -P workloads/db.properties -p recordcount=$numrecs -p stringkey=false -p operationcount=$warmup -p requestdistribution=sequential -s -threads 20 -p mongodb.writeConcern=acknowledged -p redis.hosts=$redis_caches_ports -p mongo.host=$db_machine -p ar=0 -p alpha=10 -p readBW=true -p updateBW=false -p arBW=false -p arSleep=1000 -p metricsFile=$metricsFile -p dbfail=1000,2000 -p writeBack=false -p slaresponsetime=100 2>&1"
+    cmd="cd $ycsb_dir && ./bin/ycsb run $db -P workloads/workloadc -P workloads/db.properties -p recordcount=$numrecs -p stringkey=false -p operationcount=$warmup -p requestdistribution=sequential -s -threads 20 -p mongodb.writeConcern=journal -p redis.hosts=$redis_caches_ports -p mongo.host=$db_machine -p ar=0 -p alpha=10 -p readBW=true -p updateBW=false -p arBW=false -p arSleep=1000 -p metricsFile=$metricsFile -p dbfail=1000,2000 -p writeBack=false -p slaresponsetime=100 2>&1"
     echo "warmup client with command $cmd "
     if [ "$dryrun" == false ]; then
         eval "$cmd"
@@ -198,7 +198,7 @@ run_exp() {
 
 dur="600"
 dbfail="0,240"
-totalthreads="40"
+totalthreads="20"
 
 wl="workloada"
 numar="10"
