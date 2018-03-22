@@ -38,7 +38,7 @@ public class TardisYCSBWorker extends Thread {
 
   public static final int CONTEXTUAL_LEASE = 0;
   public static final int RED_LEASE = 1;
-  public static int leaseMode = RED_LEASE;
+  public static int leaseMode = CONTEXTUAL_LEASE;
   private final RecoveryEngine recovery;
 
   private static AtomicInteger id = new AtomicInteger(0);
@@ -120,6 +120,12 @@ public class TardisYCSBWorker extends Thread {
             updateEWContextualLease(EWs[idx], recoverKeys);
           else if (leaseMode == RED_LEASE)
             updateEWRedlease(EWs[idx], recoverKeys, idx);
+          
+          for (String key: recoverKeys)
+        	  	CADSWbMongoDbClient.teleW.remove(key);
+          if (CADSWbMongoDbClient.teleW.size() == 0) {
+        	  	System.out.println("Complete recovery at "+System.nanoTime());
+          } 
         }
 
         // sleep for a while before continuing
@@ -344,7 +350,7 @@ public class TardisYCSBWorker extends Thread {
   }
 
   public static void docRecover(MemcachedClient mc, String tid, String key, 
-      int hashCode, MongoDbClient client, 
+      int hashCode, MongoDbClientDelegate client, 
       Map<String, ByteIterator> changes, int action, byte[] read_buffer)
           throws DatabaseFailureException, IQException {    
     logger.debug("Perform recover document key="+key);

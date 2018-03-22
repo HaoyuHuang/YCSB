@@ -422,7 +422,9 @@ class ClientThread implements Runnable {
 			double targetperthreadperms, CountDownLatch completeLatch) {
 		this.db = db;
 		this.slaReport = db.getProperties().containsKey("slareport");
-		this.slaResponseTime = Integer.parseInt(db.getProperties().getProperty("slaresponsetime"));
+		if (slaReport) {
+			this.slaResponseTime = Integer.parseInt(db.getProperties().getProperty("slaresponsetime"));
+		}
 
 		this.dotransactions = dotransactions;
 		this.workload = workload;

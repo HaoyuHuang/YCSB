@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.log4j.Logger;
@@ -31,11 +32,9 @@ import static com.yahoo.ycsb.db.MongoDbClientDelegate.isDatabaseFailed;
  *      driver</a>
  */
 public class CADSWbMongoDbClient extends CADSMongoDbClient {
-
-  private static final boolean READ_RECOVER = true;
-  private static final boolean WRITE_RECOVER = true;
-  
   private final Logger logger = Logger.getLogger(CADSWbMongoDbClient.class);
+  
+  public static final ConcurrentHashMap<String, Integer> teleW = new ConcurrentHashMap<>();
   
   public CADSWbMongoDbClient() {
     super();
@@ -154,6 +153,9 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
           mc.releaseILeases(hashCode);
           isDbFail = true;
         }
+        
+        if (isDbFail)
+            return Status.SERVICE_UNAVAILABLE;
 
         if (val == null) {
           System.out.println("CLVal is null in read");
@@ -171,15 +173,12 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         // at this point, got cache miss
         logger.info("Cache miss.");
         cacheMisses.incrementAndGet();
-        
-        if (isDbFail)
-          return Status.SERVICE_UNAVAILABLE;
 
         // get doc and then set the value in the cache.
         Status status = client.read(table, key, fields, result);
 
         ByteArrayByteIterator x;
-        if (status == Status.ERROR) {
+        if (status == Status.SERVICE_UNAVAILABLE) {
           mc.releaseILeases(hashCode);
           return status;
         }
@@ -282,6 +281,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
     
     if (addToEW) {
       addUserToEW(key);
+      teleW.putIfAbsent(key, 1);
     }
     
     return Status.OK;
