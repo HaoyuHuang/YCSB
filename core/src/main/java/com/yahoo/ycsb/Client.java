@@ -1019,7 +1019,7 @@ public final class Client {
 			Properties projectProp = new Properties();
 			projectProp.load(classLoader.getResourceAsStream("project.properties"));
 			System.err.println("YCSB Client " + projectProp.getProperty("version"));
-		} catch (IOException e) {
+		} catch (Exception e) {
 			System.err.println("Unable to retrieve client version.");
 		}
 

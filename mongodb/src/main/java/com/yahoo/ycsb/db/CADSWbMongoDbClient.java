@@ -72,6 +72,11 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         logger.debug("Value has no pending buffered writes"+key);
         break;
       }
+      
+      if (val.getValue() != null) {
+          logger.debug("Value is not null.");
+          break;
+      }
 
       boolean recover = true;
 
@@ -99,11 +104,6 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         }
       } else {
         recover = false;
-      }
-
-      if (val.getValue() != null) {
-        logger.debug("Value is not null.");
-        break;
       }
 
       if (!recover && val.getValue() == null) {
@@ -280,8 +280,8 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
     }
     
     if (addToEW) {
-      addUserToEW(key);
       teleW.putIfAbsent(key, 1);
+      addUserToEW(key);
     }
     
     return Status.OK;
