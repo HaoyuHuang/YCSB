@@ -24,6 +24,8 @@ public class TardisClientConfig {
 	public static boolean updateApplyBufferedWrites = false;
 	public static boolean readApplyBufferedWrites = false;
 	public static boolean ARApplyBufferedWrites = false;
+	public static boolean readAlwaysApplyBufferedWrites = false;
+	public static boolean writeSetValue = false;
 	
 
 	// configs related to pending writes log.
@@ -48,10 +50,7 @@ public class TardisClientConfig {
 
 	public static final int DATABASE_FAILURE = 1000;
 	
-	public static boolean measureSuccessWrites = false;
 	public static String metricFile = "";
-	public static final AtomicInteger numberOfSuccessfulWrites = new AtomicInteger();
-	
 	public static String leaseKey(String key) {
 		return LEASE_KEY_BUFFERED_WRITES + key;
 	}

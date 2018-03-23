@@ -134,8 +134,12 @@ public class MongoDbClient extends DB {
 	 */
 	@Override
 	public void init() throws DBException {
+		WriteConcern concern = WriteConcern.ACKNOWLEDGED;
+		if (getProperties().getProperty("mongodb.writeConcern").contains("journal")) {
+			concern = WriteConcern.JOURNALED;
+		}
 		this.mongoClient = new MongoClient(this.ipAddress, new MongoClientOptions.Builder()
-				.serverSelectionTimeout(10000).connectionsPerHost(500).writeConcern(WriteConcern.ACKNOWLEDGED).build());
+				.serverSelectionTimeout(10000).connectionsPerHost(500).writeConcern(concern).build());
 	}
 
 	public MongoDbClient(String ip) {

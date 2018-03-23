@@ -104,6 +104,7 @@ public class RedisClient extends DB {
 		int alpha = Integer.parseInt(props.getProperty(ALPHA_PROPERTY));
 
 		this.mongo = new MongoDbClientDelegate(props.getProperty(MONGO_HOST_PROPERTY), isDBFailed);
+		this.mongo.setProperties(getProperties());
 		this.mongo.init();
 
 		String[] urls = props.getProperty(REDIS_HOSTS_PROPERTY).split(",");
@@ -122,20 +123,22 @@ public class RedisClient extends DB {
 			});
 
 			TardisClientConfig.readApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("readBW", "true"));
+			TardisClientConfig.readAlwaysApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("readAlBW", "true"));
 			TardisClientConfig.updateApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("updateBW", "true"));
 			TardisClientConfig.ARApplyBufferedWrites = Boolean.parseBoolean(props.getProperty("arBW", "true"));
 			TardisClientConfig.writeBack = Boolean.parseBoolean(props.getProperty("writeBack", "false"));
-			
+			TardisClientConfig.writeSetValue = Boolean.parseBoolean(props.getProperty("writeSetValue", "false"));
+
 			TardisClientConfig.RECOVERY_WORKER_SLEEP_TIME = Long.parseLong(props.getProperty("arSleep", "1000"));
 			TardisClientConfig.metricFile = props.getProperty("metricsFile");
 
 			jedis.loadScript();
 
-			if (props.containsKey(SUCCESS_WRITE_PROPERTY)) {
-				TardisClientConfig.measureSuccessWrites = Boolean
-						.parseBoolean(props.getProperty(SUCCESS_WRITE_PROPERTY));
-				isDBFailed.set(true);
-			}
+			// if (props.containsKey(SUCCESS_WRITE_PROPERTY)) {
+			// TardisClientConfig.measureSuccessWrites = Boolean
+			// .parseBoolean(props.getProperty(SUCCESS_WRITE_PROPERTY));
+			// isDBFailed.set(true);
+			// }
 
 			threads = Executors.newFixedThreadPool(120);
 
@@ -207,10 +210,6 @@ public class RedisClient extends DB {
 
 		key = key.substring(4);
 
-		if (TardisClientConfig.measureSuccessWrites) {
-			return Status.OK;
-		}
-
 		int id = jedis.getKeyServerIndex(key);
 		if (fields == null) {
 			StringByteIterator.putAllAsByteIterators(result, jedis.hgetAll(id, TardisClientConfig.normalKey(key)));
@@ -227,7 +226,7 @@ public class RedisClient extends DB {
 			assert !fieldIterator.hasNext() && !valueIterator.hasNext();
 		}
 
-		if (result.isEmpty() && !TardisClientConfig.measureSuccessWrites) {
+		if (result.isEmpty() || TardisClientConfig.readAlwaysApplyBufferedWrites) {
 			return recover(key, result);
 		}
 		return result.isEmpty() ? Status.ERROR : Status.OK;
@@ -238,7 +237,10 @@ public class RedisClient extends DB {
 		lease.acquireTillSuccess(id, TardisClientConfig.leaseKey(key));
 		try {
 			RecoveryResult res = recovery.recover(RecoveryCaller.READ, key);
-			if (RecoveryResult.FAIL.equals(res) || RecoveryResult.SKIP.equals(res)) {
+			if (RecoveryResult.FAIL.equals(res) || RecoveryResult.SKIP.equals(res) || isDBFailed.get()) {
+				if (!result.isEmpty()) {
+					return Status.OK;
+				}
 				return Status.ERROR;
 			}
 			HashMap<String, String> mongoResult = new HashMap<>();
@@ -295,7 +297,7 @@ public class RedisClient extends DB {
 
 				cacheKeyExist = jedis.exists(id, TardisClientConfig.normalKey(key));
 
-				if (cacheKeyExist) {
+				if (cacheKeyExist || TardisClientConfig.writeSetValue) {
 					jedis.hmset(id, TardisClientConfig.normalKey(key), fields);
 				}
 
@@ -343,22 +345,23 @@ public class RedisClient extends DB {
 					lease.releaseLease(id, TardisClientConfig.ewLeaseKey(key), luaKeys);
 				}
 
-				if (TardisClientConfig.measureSuccessWrites) {
-					TardisClientConfig.numberOfSuccessfulWrites.incrementAndGet();
-				}
+				// if (TardisClientConfig.measureSuccessWrites) {
+				// TardisClientConfig.numberOfSuccessfulWrites.incrementAndGet();
+				// }
 			}
 			return Status.OK;
 		} catch (Exception e) {
 			e.printStackTrace();
-			if (TardisClientConfig.measureSuccessWrites) {
-				System.out.println("success write " + TardisClientConfig.numberOfSuccessfulWrites.get());
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e1) {
-					e1.printStackTrace();
-				}
-				System.exit(0);
-			}
+			// if (TardisClientConfig.measureSuccessWrites) {
+			// System.out.println("success write " +
+			// TardisClientConfig.numberOfSuccessfulWrites.get());
+			// try {
+			// Thread.sleep(1000);
+			// } catch (InterruptedException e1) {
+			// e1.printStackTrace();
+			// }
+			// System.exit(0);
+			// }
 			return Status.ERROR;
 		}
 	}
