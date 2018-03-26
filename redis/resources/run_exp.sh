@@ -73,6 +73,8 @@ run_exp() {
     config=$8
     alpha=$9
     write_back=${10}
+    readAlBW=${11}
+    writeSetValue=${12}
 
     spec="new-paper-$exp_prefix-$config-$wl-$totalthreads-threads-tr-$numrecs-ar-$numar-alpha-$alpha-arsleep-$arSleep-$dur-warm-$warmup-$write_back-exp"
     echo $spec
@@ -117,7 +119,7 @@ run_exp() {
     sleep 5
     
     echo "Warmup"
-    cmd="cd $ycsb_dir && ./bin/ycsb run $db -P workloads/workloadc -P workloads/db.properties -p recordcount=$numrecs -p stringkey=false -p operationcount=$warmup -p requestdistribution=sequential -s -threads 20 -p mongodb.writeConcern=journal -p redis.hosts=$redis_caches_ports -p mongo.host=$db_machine -p ar=0 -p alpha=10 -p readBW=true -p updateBW=false -p arBW=false -p arSleep=1000 -p metricsFile=$metricsFile -p dbfail=1000,2000 -p writeBack=false -p slaresponsetime=100 2>&1"
+    cmd="cd $ycsb_dir && ./bin/ycsb run $db -P workloads/workloadc -P workloads/db.properties -p recordcount=$numrecs -p stringkey=false -p operationcount=$warmup -p requestdistribution=sequential -s -threads 20 -p mongodb.writeConcern=journal -p redis.hosts=$redis_caches_ports -p mongo.host=$db_machine -p ar=0 -p alpha=10 -p readBW=true -p updateBW=false -p arBW=false -p arSleep=1000 -p metricsFile=$metricsFile -p dbfail=1000,2000 -p writeBack=false -p slaresponsetime=100 -p readAlBW=false -p writeSetValue=false 2>&1"
     echo "warmup client with command $cmd "
     if [ "$dryrun" == false ]; then
         eval "$cmd"
@@ -135,7 +137,7 @@ run_exp() {
     start_stats $client_ip "client" $statsdir
     
     echo "Begin Experiment..."
-    cmd="bash $base_dir/run_ycsb.sh $db $wl $numrecs $dur $totalthreads $redis_caches_ports $db_machine $numar $readBW $updateBW $arBW $arSleep $metricsFile $dbfail $alpha $write_back"
+    cmd="bash $base_dir/run_ycsb.sh $db $wl $numrecs $dur $totalthreads $redis_caches_ports $db_machine $numar $readBW $updateBW $arBW $arSleep $metricsFile $dbfail $alpha $write_back $readAlBW $writeSetValue"
     echo "running client with command $cmd "
 
     if [ "$dryrun" == false ]; then
@@ -210,6 +212,8 @@ arBW="true"
 config="tardis"
 alpha="100"
 write_back="false"
+readAlBW="false"
+writeSetValue="false"
 
 # for alpha in "1" "10" "100" "1000"
 # do
@@ -228,27 +232,47 @@ for alpha in "1" "10" "100"
 do
     for numar in "1" "10" "100"
     do
+        readAlBW="false"
+        writeSetValue="false"
         write_back="false"
         readBW="true"
         updateBW="true"
         arBW="true"
         config="tardis"
-        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
         readBW="true"
         updateBW="false"
         arBW="true"
         config="tard"
-        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
         readBW="false"
         updateBW="true"
         arBW="true"
         config="dis"
-        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
         write_back="true"
         readBW="true"
         updateBW="true"
         arBW="true"
         config="tar"
-        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
+
+        write_back="true"
+        readBW="true"
+        updateBW="false"
+        arBW="true"
+        config="tardisread"
+        readAlBW="true"
+        writeSetValue="false"
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
+
+        write_back="true"
+        readBW="true"
+        updateBW="true"
+        arBW="true"
+        config="tardiswrite"
+        readAlBW="false"
+        writeSetValue="true"
+        run_exp $wl $numar $readBW $updateBW $arBW $arSleep $exp_prefix $config $alpha $write_back $readAlBW $writeSetValue
     done
 done

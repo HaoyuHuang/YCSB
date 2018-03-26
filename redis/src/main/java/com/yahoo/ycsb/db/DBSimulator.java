@@ -23,12 +23,12 @@ public class DBSimulator implements Callable<Void> {
 
 	/**
 	 * @param failed
-	 *            A flag indicating the status of database. True means database
-	 *            has crashed. False means database is alive.
+	 *            A flag indicating the status of database. True means database has
+	 *            crashed. False means database is alive.
 	 * @param invtervals
 	 *            [start, end, start, end...]. Database is considered as failed
-	 *            during the given interval. Start and end are relative time to
-	 *            when this class is created. Time unit is second.
+	 *            during the given interval. Start and end are relative time to when
+	 *            this class is created. Time unit is second.
 	 */
 	public DBSimulator(AtomicBoolean failed, long[] invtervals, RedisRecoveryEngine recoveryEngine) {
 		super();
@@ -51,17 +51,21 @@ public class DBSimulator implements Callable<Void> {
 			if (now >= start && !failed.get()) {
 				System.out.println("Crash at " + System.nanoTime());
 				failed.set(true);
-			} else if (now >= end) {
-				TardisMetrics.metrics.put("recover-start", String.valueOf(System.currentTimeMillis()));
-				TardisMetrics.metrics.put("recover-all-dirty-docs", String.valueOf(recoveryEngine.dirtyDocs()));
-				System.out.println(TardisMetrics.metrics);
-				
-				System.out.println("Back at " + System.nanoTime());
-				failed.set(false);
-				System.out.println("#########dbfailed " + failed.get());
-				index += 2;
-				if (index >= invtervals.length) {
-					break;
+			}
+
+			if (failed.get()) {
+				if (now >= end || recoveryEngine.dirtyDocs() >= 100000) {
+					TardisMetrics.metrics.put("recover-start", String.valueOf(System.currentTimeMillis()));
+					TardisMetrics.metrics.put("recover-all-dirty-docs", String.valueOf(recoveryEngine.dirtyDocs()));
+					System.out.println(TardisMetrics.metrics);
+
+					System.out.println("Back at " + System.nanoTime());
+					failed.set(false);
+					System.out.println("#########dbfailed " + failed.get());
+					index += 2;
+					if (index >= invtervals.length) {
+						break;
+					}
 				}
 			}
 			Thread.sleep(1000);
