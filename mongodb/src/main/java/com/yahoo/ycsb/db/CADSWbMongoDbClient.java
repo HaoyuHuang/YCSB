@@ -73,7 +73,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         break;
       }
       
-      if (val.getValue() != null) {
+      if (READ_RECOVER_ALWAYS == false && val.getValue() != null) {
           logger.debug("Value is not null.");
           break;
       }
@@ -109,6 +109,11 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
       if (!recover && val.getValue() == null) {
         logger.debug("Value is null + Database failed.");
         throw new DatabaseFailureException();
+      }
+      
+      if (val.getValue() != null) {
+    	  	// got the value, so return anyway
+    	  	break;
       }
     }
 
@@ -245,12 +250,14 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         }
         
         // update RMW key-value pair
-        if (val.getValue() != null) {
+        if (val.getValue() != null || WRITE_SET) {
           logger.debug("Update cache value");
           
           Object obj = val.getValue();
           HashMap<String, ByteIterator> m = new HashMap<>();
-          CacheUtilities.unMarshallHashMap(m, (byte[])obj, read_buffer);          
+          if (obj != null) {
+        	  	CacheUtilities.unMarshallHashMap(m, (byte[])obj, read_buffer);  
+          }
           m.putAll(values);          
           byte[] payload = CacheUtilities.SerializeHashMap(m);
           mc.ewswap(sid, key, hashCode, payload);

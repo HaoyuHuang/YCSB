@@ -45,6 +45,7 @@ public class TardisYCSBConfig {
   public static final String KEY_PHASE = "phase";
   public static final String KEY_AR_CHECK_SLEEP_TIME = "arsleeptime";
   public static final String TARDIS_MODE = "tardismode";
+public static final String WRITE_SET = "writeset";
   
   public static String[] cacheServers = null;
   

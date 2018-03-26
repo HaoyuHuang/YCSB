@@ -9,7 +9,6 @@ import static com.yahoo.ycsb.db.TardisYCSBConfig.getUserLogKey;
 import static com.yahoo.ycsb.db.TardisYCSBConfig.getUserLogLeaseKey;
 
 import java.io.IOException;
-import java.rmi.dgc.Lease;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -47,7 +46,7 @@ public class TardisYCSBWorker extends Thread {
 	static Random rand = new Random();
 	private int ALPHA = 5;
 	static long sleepTime = RECOVERY_WORKER_BASE_TIME_BETWEEN_CHECKING_EW;
-	static final long checkSleepTime = 1000;
+	static final long CHECK_SLEEP_TIME = 1000;
 
 	byte[] read_buffer;
 	private final ExponentialBackoff backoff = new ExponentialBackoff(1000, 100);
@@ -125,7 +124,8 @@ public class TardisYCSBWorker extends Thread {
 
 					for (String key: recoverKeys)
 						CADSWbMongoDbClient.teleW.remove(key);
-					if (CADSWbMongoDbClient.teleW.size() == 0) {
+					if (CADSWbMongoDbClient.teleW.size() == 0 && 
+							CADSWbMongoDbClient.cacheMode == TardisYCSBConfig.CACHE_WRITE_THROUGH) {
 						System.out.println("Complete recovery at "+System.nanoTime());
 						
 						try {
@@ -143,7 +143,7 @@ public class TardisYCSBWorker extends Thread {
 			} while (idx != start && isRunning);
 
 			if (totalRecovers == 0) {
-				sleepFor(checkSleepTime);
+				sleepFor(CHECK_SLEEP_TIME);
 			} else {
 				totalRecovers = 0;
 			}
@@ -206,11 +206,18 @@ public class TardisYCSBWorker extends Thread {
 	}
 
 	private void recoverWithContextualLeases(String key, Set<String> recoverKeys) {
-		long userId = TardisYCSBConfig.extractUserId(key);
 		Integer hashCode = getHashCode(key);
+		
+		String pwKey = TardisYCSBConfig.getPWLogKey(hashCode);
+		Object pwVal = mc.get(pwKey);
+		if (pwVal == null) {
+			recoverKeys.add(key);
+			return;
+		}
 
 		while (true) {
 			String tid = mc.generateSID();
+			boolean dbfail = false;
 			try {
 				docRecover(mc, tid, key, hashCode, 
 						mongoClient, null, TardisYCSBConfig.ACT_AR, read_buffer);
@@ -218,7 +225,6 @@ public class TardisYCSBWorker extends Thread {
 				mc.ewcommit(tid, hashCode, false);
 				CADSMongoDbClient.numDocsRecoveredInARs.incrementAndGet();
 				recoverKeys.add(key);
-				resetTime();
 				break;
 			} catch (DatabaseFailureException e ) {
 				try {
@@ -227,18 +233,20 @@ public class TardisYCSBWorker extends Thread {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
-				break;
+				dbfail = true;
 			} catch (IQException e) { }
 
 			CADSWbMongoDbClient.numSessRetriesInARs.incrementAndGet();
 
 			// at this point, fail to recover
 			// sleep exponentially and retry on the same doc
-			sleepTime *= 2;
-			if (sleepTime > checkSleepTime) {
-				sleepTime = checkSleepTime;
+			if (dbfail == true) {
+				sleepTime = Math.min(sleepTime * 2, CHECK_SLEEP_TIME);
+				sleepFor(sleepTime);
+			} else {
+				resetTime();
+				sleepFor(sleepTime);
 			}
-			sleepFor(sleepTime);
 		}
 	}
 
@@ -370,10 +378,10 @@ public class TardisYCSBWorker extends Thread {
 		if (!val.isPending()) return;
 
 		HashMap<String, ByteIterator> m = new HashMap<>();
-		if (val.getValue() != null) {
-			logger.debug("Got value.");
-			CacheUtilities.unMarshallHashMap(m, (byte[])val.getValue(), read_buffer);
-		}
+//		if (val.getValue() != null) {
+//			logger.debug("Got value.");
+//			CacheUtilities.unMarshallHashMap(m, (byte[])val.getValue(), read_buffer);
+//		}
 
 		// get buffered writes
 		String pwKey = TardisYCSBConfig.getPWLogKey(hashCode);

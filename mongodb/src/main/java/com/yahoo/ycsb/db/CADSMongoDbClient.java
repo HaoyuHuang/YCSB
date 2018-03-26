@@ -44,6 +44,8 @@ public abstract class CADSMongoDbClient extends DB {
 	
 	protected static boolean READ_RECOVER = true;
 	protected static boolean WRITE_RECOVER = true;
+	protected static boolean READ_RECOVER_ALWAYS = false;
+	protected static boolean WRITE_SET = false;
 
 	public final static AtomicLong cacheMisses = new AtomicLong(0);
 	public final static AtomicLong cacheHits = new AtomicLong(0);
@@ -183,6 +185,8 @@ public abstract class CADSMongoDbClient extends DB {
 						if (getProperties().getProperty(TardisYCSBConfig.TARDIS_MODE) != null) {
 							String tardisMode = getProperties().getProperty(TardisYCSBConfig.TARDIS_MODE);
 							switch (tardisMode) {
+							case "tard_reads":
+								READ_RECOVER_ALWAYS = true;
 							case "tard":
 								READ_RECOVER = true;
 								WRITE_RECOVER = false;
@@ -203,8 +207,14 @@ public abstract class CADSMongoDbClient extends DB {
 						}
 					}
 					
+					if (getProperties().getProperty(TardisYCSBConfig.WRITE_SET) != null) {
+						WRITE_SET = Boolean.parseBoolean(getProperties().getProperty(TardisYCSBConfig.WRITE_SET));
+					}
+					
 					System.out.println("Read Recover = "+READ_RECOVER);
+					System.out.println("Read recover ALWAYS = "+READ_RECOVER_ALWAYS);
 					System.out.println("Write Recover = "+WRITE_RECOVER);
+					System.out.println("Write Set = "+WRITE_SET);
 
 					if (getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MEMORY) != null) {
 						TardisYCSBConfig.cacheMemoryMB = Integer.parseInt(getProperties().getProperty(TardisYCSBConfig.KEY_CACHE_MEMORY));
@@ -254,7 +264,7 @@ public abstract class CADSMongoDbClient extends DB {
 						pool.setWeights(weights);
 						pool.setInitConn(200);
 						pool.setMinConn(200);
-						pool.setMaxConn(200);
+						pool.setMaxConn(1000);
 						pool.setMaintSleep(0);
 						pool.setNagle(false);
 						pool.initialize();
