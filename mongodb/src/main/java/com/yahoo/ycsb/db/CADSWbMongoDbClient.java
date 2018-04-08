@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.log4j.Logger;
@@ -34,8 +35,9 @@ import static com.yahoo.ycsb.db.MongoDbClientDelegate.isDatabaseFailed;
 public class CADSWbMongoDbClient extends CADSMongoDbClient {
   private final Logger logger = Logger.getLogger(CADSWbMongoDbClient.class);
   
-  public static final ConcurrentHashMap<String, Integer> teleW = new ConcurrentHashMap<>();
-  
+  //public static final ConcurrentHashMap<String, Integer> teleW = new ConcurrentHashMap<>();
+  public static final AtomicInteger dirtyDocs = new AtomicInteger(0);
+
   public CADSWbMongoDbClient() {
     super();
   }
@@ -90,6 +92,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
             mc.ewcommit(tid, id, !recover);
             logger.debug("Recover succeeded.");
             numDocsRecoveredInReads.incrementAndGet();
+            //teleW.remove(key);
             break;
           } catch (DatabaseFailureException e) {
             recover = false;
@@ -233,13 +236,16 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
         }
         
         Boolean recover = null;
-        if (val.isPending()) {
+        if (!WRITE_RECOVER) recover = false;
+        
+        if (val.isPending() || (WRITE_RECOVER == false && dirtyDocs.get() == 0)) {
           logger.debug("Value has pending buffered writes.");
           if (cacheMode != CACHE_WRITE_BACK && WRITE_RECOVER && !isDatabaseFailed.get()) {
             try {
               TardisYCSBWorker.docRecover(mc, sid, key, hashCode, 
                   client, values, ACT_UPDATE, read_buffer);
               numDocsRecoveredInUpdates.incrementAndGet();
+              //teleW.remove(key);
               recover = true;
             } catch (DatabaseFailureException e) {
               recover = false;
@@ -287,7 +293,7 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
     }
     
     if (addToEW) {
-      teleW.putIfAbsent(key, 1);
+    	  //teleW.putIfAbsent(key, 1);
       addUserToEW(key);
     }
     
@@ -297,13 +303,6 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
   private boolean addDeltaToPW(String sid, long id, HashMap<String, ByteIterator> values) throws IQException {
     CLValue val = null;
     String pw = TardisYCSBConfig.getPWLogKey(id);
-//    val = mc.ewappend(pw, getHashCode(id), delta, sid);
-//    if ((boolean)val.getValue() == false) {  
-//      logger.debug("No buffered write key-value pair exists. Create a new one.");
-//      mc.ewswap(sid, pw, getHashCode(id), delta);     
-//    } else {
-//      logger.debug("Append buffered write to existing buffered write key-value pair succeeds.");
-//    }
     
     // must perform read-modify-write to prevent the cache size going too large
     // that exceeds memcache limit.
@@ -329,8 +328,6 @@ public class CADSWbMongoDbClient extends CADSMongoDbClient {
     }
     
     return (val.getValue() == null);
-    
-//    TimedMetrics.getInstance().add(MetricsName.METRICS_DBFAIL_MEM_OVERHEAD, str.getBytes().length);
   }
   
   private int hashKey(long id) {

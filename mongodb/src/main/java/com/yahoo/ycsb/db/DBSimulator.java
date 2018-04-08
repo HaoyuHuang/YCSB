@@ -15,6 +15,7 @@ public class DBSimulator implements Callable<Void> {
   private int index;
   private long now;
   private boolean isRunning = true;
+  public static volatile boolean modechanged=false;
   /**
    * @param failed
    * A flag indicating the status of database. True means database
@@ -37,12 +38,13 @@ public class DBSimulator implements Callable<Void> {
       long start = invtervals[index];
       long end = invtervals[index + 1];
       long now = (System.currentTimeMillis() - this.now) / 1000;
-      if (now >= start && !failed.get()) {
+      if (now >= start && !failed.get() && !modechanged) {
         System.out.println("Crash at " + System.nanoTime());
         failed.set(true);
       } else if (now >= end) {
         System.out.println("Back at " + System.nanoTime());
         failed.set(false);
+        modechanged = true;
         System.out.println("#########dbfailed " + failed.get());
         index += 2;
         if (index >= invtervals.length) {

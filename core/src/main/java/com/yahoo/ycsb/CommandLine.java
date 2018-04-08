@@ -17,6 +17,7 @@
 
 package com.yahoo.ycsb;
 
+import com.yahoo.ycsb.db.MongoDbClientDelegate;
 import com.yahoo.ycsb.workloads.CoreWorkload;
 
 import java.io.BufferedReader;
@@ -152,9 +153,13 @@ public final class CommandLine {
         handleInsert(tokens, table, db);
       } else if (tokens[0].compareTo("delete") == 0) {
         handleDelete(tokens, table, db);
+      } else if (tokens[0].compareTo("dbfail") == 0) {
+    	  	boolean dbfail = Boolean.parseBoolean(tokens[1]);
+    	  	MongoDbClientDelegate.isDatabaseFailed.set(dbfail);
+    	  	System.out.println("DB Fail: "+MongoDbClientDelegate.isDatabaseFailed.get());
       } else {
-        System.out.println("Error: unknown command \"" + tokens[0] + "\"");
-      }
+          System.out.println("Error: unknown command \"" + tokens[0] + "\"");
+      } 
 
       System.out.println((System.currentTimeMillis() - st) + " ms");
     }

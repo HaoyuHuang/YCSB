@@ -56,6 +56,7 @@ public abstract class CADSMongoDbClient extends DB {
 	public final static AtomicLong numSessRetriesInWrites = new AtomicLong(0);
 	public final static AtomicLong numSessRetriesInARs = new AtomicLong(0);
 	public final static AtomicLong numSessRetriesInReads = new AtomicLong(0);
+	public final static AtomicLong findNoBuff = new AtomicLong();
 
 	public final static AtomicLong numLeasesGranted = new AtomicLong(0);  
 
@@ -185,8 +186,15 @@ public abstract class CADSMongoDbClient extends DB {
 						if (getProperties().getProperty(TardisYCSBConfig.TARDIS_MODE) != null) {
 							String tardisMode = getProperties().getProperty(TardisYCSBConfig.TARDIS_MODE);
 							switch (tardisMode) {
+							case "tar":
+								READ_RECOVER = false;
+								WRITE_RECOVER = false;
+								break;
 							case "tard_reads":
 								READ_RECOVER_ALWAYS = true;
+								READ_RECOVER = true;
+								WRITE_RECOVER = false;
+								break;
 							case "tard":
 								READ_RECOVER = true;
 								WRITE_RECOVER = false;
@@ -326,7 +334,8 @@ public abstract class CADSMongoDbClient extends DB {
 					if (getProperties().getProperty("ewstats") != null) {
 						boolean ewstats = Boolean.parseBoolean(getProperties().getProperty("ewstats"));
 						if (ewstats == true) {
-							ewStatsWatcher = new EWStatsWatcher();
+							int numRecs = Integer.parseInt(getProperties().getProperty("recordcount"));
+							ewStatsWatcher = new EWStatsWatcher(numRecs);
 							executor.submit(ewStatsWatcher);
 						}
 					}
@@ -363,14 +372,7 @@ public abstract class CADSMongoDbClient extends DB {
 		}
 
 		if (threadCount.decrementAndGet() == 0) {   
-			System.out.println("Num Cache Hit: "+cacheHits.get());
-			System.out.println("Num Cache Miss: "+cacheMisses.get());
-			System.out.println("Num Docs Recovered: "+numDocsRecovered.get());
-			System.out.println("Num Docs Recovered in ARs: "+numDocsRecoveredInARs.get());
-			System.out.println("Num Docs Recovered in Reads: "+numDocsRecoveredInReads.get());
-			System.out.println("Num Docs Recovered in Writes: "+numDocsRecoveredInUpdates.get());
-			System.out.println("Total lease retries: "+MemcachedLease.getBackoff().get());
-			System.out.println("Average lease retries: "+ MemcachedLease.getBackoff().get() / (double) MemcachedLease.numLeasesGranted.get());
+			printStats();
 
 			if ( dbStateSimulator != null ) {
 				dbStateSimulator.shutdown();
@@ -410,5 +412,17 @@ public abstract class CADSMongoDbClient extends DB {
 
 			isInit.set(false);
 		}
+	}
+
+	public static void printStats() {
+		System.out.println("Num Cache Hit: "+cacheHits.get());
+		System.out.println("Num Cache Miss: "+cacheMisses.get());
+		System.out.println("Num Docs Recovered: "+numDocsRecovered.get());
+		System.out.println("Num Docs Recovered in ARs: "+numDocsRecoveredInARs.get());
+		System.out.println("Num Docs Recovered in Reads: "+numDocsRecoveredInReads.get());
+		System.out.println("Num Docs Recovered in Writes: "+numDocsRecoveredInUpdates.get());
+		System.out.println("Total lease retries: "+MemcachedLease.getBackoff().get());
+		System.out.println("Average lease retries: "+ MemcachedLease.getBackoff().get() / (double) MemcachedLease.numLeasesGranted.get());
+		System.out.println("Num find no buffs: "+findNoBuff.get());
 	}
 }

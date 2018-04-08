@@ -76,6 +76,10 @@ public static final String WRITE_SET = "writeset";
     return getHashCode(num);
   }
   
+  protected static int getUserId(String key) {
+	  return Integer.parseInt(key.replaceAll("[^0-9]", ""));
+  }
+  
   protected static Integer getHashCode(long id) {
     return new Integer((int) (id % cacheServers.length));
   }
