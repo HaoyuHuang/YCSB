@@ -15,7 +15,7 @@ import org.apache.log4j.Logger;
 import com.meetup.memcached.MemcachedClient;
 import com.meetup.memcached.SockIOPool;
 
-import ch.qos.logback.core.net.SyslogOutputStream;
+//import ch.qos.logback.core.net.SyslogOutputStream;
 
 public class EWStatsWatcher implements Callable<Void> {
 	private final MemcachedClient memcachedClient;
